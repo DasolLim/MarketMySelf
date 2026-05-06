@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Chakra+Petch:wght@600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ── Backgrounds ─────────────────────────────────────── */
+  --bg-base:     #07080f;
+  --bg-surface:  #0c0f1d;
+  --bg-elevated: #111627;
+  --bg-hover:    #161d30;
+
+  /* ── Borders ─────────────────────────────────────────── */
+  --border:      rgba(255, 255, 255, 0.07);
+  --border-mid:  rgba(255, 255, 255, 0.12);
+  --border-hover:rgba(255, 255, 255, 0.20);
+
+  /* ── Typography ──────────────────────────────────────── */
+  --text-1: #f0f2fa;
+  --text-2: #8492b8;
+  --text-3: #4a5578;
+  --text-4: #232b42;
+
+  /* ── Brand ───────────────────────────────────────────── */
+  --indigo:       #6366f1;
+  --indigo-light: #818cf8;
+  --indigo-faint: rgba(99, 102, 241, 0.10);
+  --indigo-glow:  rgba(99, 102, 241, 0.30);
+  --amber:        #f59e0b;
+  --amber-faint:  rgba(245, 158, 11, 0.08);
+  --amber-glow:   rgba(245, 158, 11, 0.28);
+
+  /* ── Categories ──────────────────────────────────────── */
+  --tech:  #22d3ee;
+  --mkt:   #c084fc;
+  --fin:   #34d399;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background-color: var(--bg-base);
+  color: var(--text-1);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────── */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-9px); }
+}
+
+@keyframes floatAlt {
+  0%, 100% { transform: translateY(-6px) rotate(-1deg); }
+  50%       { transform: translateY(4px)  rotate(1deg);  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0;  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 6px var(--indigo); }
+  50%       { opacity: 0.6; box-shadow: 0 0 12px var(--indigo); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cell-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes gradientPan {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* ── Utility helpers ─────────────────────────────────────────────────── */
+
+.font-mono  { font-family: 'IBM Plex Mono', monospace; }
+.font-brand { font-family: 'Chakra Petch', sans-serif; }
+
+.fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 0.65s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.5s ease both;
+}
+
+/* scanlines — grid overlay */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* focus ring */
+:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+}
