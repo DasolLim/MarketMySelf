@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+.env
+.claude
+.next/
+node_modules/
+tsconfig.tsbuildinfo
+
