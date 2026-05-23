@@ -1,26 +1,48 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { fetchMySubscription } from "@/lib/api";
+import type { Subscription } from "@/types";
+
+const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  free:     { label: "Free",     color: "#9CA3AF", bg: "rgba(156,163,175,0.08)", border: "rgba(156,163,175,0.22)" },
+  basic:    { label: "Basic",    color: "#0A66C2", bg: "rgba(10,102,194,0.08)",  border: "rgba(10,102,194,0.22)"  },
+  standard: { label: "Standard", color: "#7C3AED", bg: "rgba(124,58,237,0.08)", border: "rgba(124,58,237,0.22)"  },
+  premium:  { label: "Premium",  color: "#B45309", bg: "rgba(180,83,9,0.08)",   border: "rgba(180,83,9,0.22)"    },
+};
+
+const TIER_PRICES: Record<string, string> = {
+  basic: "$4.99/mo", standard: "$14.99/mo", premium: "$24.99/mo",
+};
 
 export default function DashboardPage() {
-  const { accessToken, userId, isLoading, logout } = useAuth();
+  const { accessToken, userId, isLoading, role, logout } = useAuth();
   const router = useRouter();
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subLoading, setSubLoading] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !accessToken) {
-      router.push("/login");
-    }
-  }, [isLoading, accessToken, router]);
+    if (!isLoading && !accessToken) router.push("/login");
+    if (!isLoading && accessToken && role && role !== "seeker") router.push("/recruiter");
+  }, [isLoading, accessToken, role, router]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetchMySubscription(accessToken)
+      .then(setSubscription)
+      .catch(() => setSubscription(null))
+      .finally(() => setSubLoading(false));
+  }, [accessToken]);
 
   if (isLoading) {
     return (
       <main
         style={{
           minHeight: "100vh",
-          background: "#07080f",
+          background: "#F3F2EF",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -31,13 +53,13 @@ export default function DashboardPage() {
             style={{
               width: 18,
               height: 18,
-              border: "2px solid rgba(99,102,241,0.3)",
-              borderTopColor: "#6366f1",
+              border: "2px solid rgba(10,102,194,0.2)",
+              borderTopColor: "#0A66C2",
               borderRadius: "50%",
               animation: "spin 600ms linear infinite",
             }}
           />
-          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#4a5578", letterSpacing: "0.08em" }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#9CA3AF", fontWeight: 500 }}>
             Loading...
           </span>
         </div>
@@ -52,52 +74,47 @@ export default function DashboardPage() {
 
   const quickLinks = [
     {
-      href: "/grid/1",
-      label: "Browse Billboard",
-      desc: "Find and purchase a section",
-      color: "#6366f1",
+      href: "/dashboard/profile",
+      label: "My Profile",
+      desc: "Edit your billboard section",
+      color: "#0A66C2",
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <rect x="3" y="3" width="7" height="7" rx="1"/>
-          <rect x="14" y="3" width="7" height="7" rx="1"/>
-          <rect x="3" y="14" width="7" height="7" rx="1"/>
-          <rect x="14" y="14" width="7" height="7" rx="1"/>
+          <circle cx="12" cy="7" r="4"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
         </svg>
       ),
     },
     {
-      href: "/",
-      label: "Home",
-      desc: "Back to the main page",
-      color: "#8492b8",
+      href: "/dashboard/applications",
+      label: "Applications",
+      desc: "Track your job applications",
+      color: "#0A66C2",
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-          <polyline points="9,22 9,12 15,12 15,22"/>
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 10h8M8 14h5"/>
         </svg>
       ),
     },
     {
-      href: "/about",
-      label: "About",
-      desc: "Our story and mission",
-      color: "#8492b8",
+      href: "/dashboard/coaching",
+      label: "AI Coaching",
+      desc: "Resume review and interview prep",
+      color: "#0A66C2",
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 16v-4M12 8h.01"/>
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
         </svg>
       ),
     },
     {
-      href: "/contact",
-      label: "Contact",
-      desc: "Get in touch with us",
-      color: "#8492b8",
+      href: "/dashboard/settings",
+      label: "Settings",
+      desc: "Password and account options",
+      color: "#555555",
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-          <polyline points="22,6 12,13 2,6"/>
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
         </svg>
       ),
     },
@@ -107,31 +124,29 @@ export default function DashboardPage() {
     <main
       style={{
         minHeight: "100vh",
-        background: "#07080f",
-        color: "#f0f2fa",
+        background: "#F3F2EF",
+        color: "#191919",
         padding: "80px clamp(20px, 5vw, 60px) 60px",
         position: "relative",
-        overflow: "hidden",
       }}
     >
-      {/* Background */}
-      <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px)", backgroundSize: "36px 36px", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 800, height: 500, background: "radial-gradient(ellipse, rgba(99,102,241,0.06) 0%, transparent 65%)", pointerEvents: "none" }} />
+      {/* Top accent */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#0A66C2" }} />
 
-      <div style={{ maxWidth: 800, margin: "0 auto", position: "relative", animation: "fadeInUp 0.65s cubic-bezier(0.16,1,0.3,1) both" }}>
+      <div style={{ maxWidth: 800, margin: "0 auto", position: "relative", animation: "fadeInUp 0.55s cubic-bezier(0.16,1,0.3,1) both" }}>
 
         {/* Page header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
           <div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#6366f1", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 10 }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#0A66C2", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>
               Your account
             </div>
             <h1
               style={{
                 fontFamily: "'Inter', sans-serif",
                 fontWeight: 800,
-                fontSize: "clamp(28px, 4vw, 40px)",
-                color: "#f0f2fa",
+                fontSize: "clamp(26px, 4vw, 36px)",
+                color: "#191919",
                 letterSpacing: "-0.03em",
                 lineHeight: 1.1,
               }}
@@ -144,22 +159,22 @@ export default function DashboardPage() {
             style={{
               padding: "8px 20px",
               background: "transparent",
-              border: "1px solid rgba(255,255,255,0.09)",
-              borderRadius: 8,
-              color: "#8492b8",
+              border: "1px solid rgba(0,0,0,0.20)",
+              borderRadius: 20,
+              color: "#555555",
               fontFamily: "'Inter', sans-serif",
-              fontWeight: 500,
+              fontWeight: 600,
               fontSize: 14,
               cursor: "pointer",
               transition: "border-color 150ms, color 150ms",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.22)";
-              e.currentTarget.style.color = "#f0f2fa";
+              e.currentTarget.style.borderColor = "rgba(0,0,0,0.40)";
+              e.currentTarget.style.color = "#191919";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
-              e.currentTarget.style.color = "#8492b8";
+              e.currentTarget.style.borderColor = "rgba(0,0,0,0.20)";
+              e.currentTarget.style.color = "#555555";
             }}
           >
             Sign out
@@ -169,42 +184,42 @@ export default function DashboardPage() {
         {/* Account info card */}
         <div
           style={{
-            background: "#0c0f1d",
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: 16,
+            background: "#FFFFFF",
+            border: "1px solid rgba(0,0,0,0.08)",
+            borderRadius: 12,
             padding: "24px 28px",
-            marginBottom: 24,
+            marginBottom: 16,
             position: "relative",
             overflow: "hidden",
+            boxShadow: "0 1px 8px rgba(0,0,0,0.05)",
           }}
         >
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #6366f1, #818cf8)" }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#0A66C2" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            {/* Avatar */}
             <div
               style={{
                 width: 52,
                 height: 52,
-                borderRadius: 14,
-                background: "rgba(99,102,241,0.12)",
-                border: "1px solid rgba(99,102,241,0.28)",
+                borderRadius: "50%",
+                background: "rgba(10,102,194,0.08)",
+                border: "2px solid rgba(10,102,194,0.20)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
               }}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="1.6">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A66C2" strokeWidth="1.6">
                 <circle cx="12" cy="7" r="4"/>
                 <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
               </svg>
             </div>
             <div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 16, color: "#f0f2fa", marginBottom: 4 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 16, color: "#191919", marginBottom: 3 }}>
                 Your PixelHire Account
               </div>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#4a5578" }}>
-                ID: <span style={{ color: "#8492b8" }}>{shortId}</span>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF" }}>
+                ID: <span style={{ color: "#555555", fontWeight: 500 }}>{shortId}</span>
               </div>
             </div>
             <div
@@ -214,86 +229,164 @@ export default function DashboardPage() {
                 alignItems: "center",
                 gap: 6,
                 padding: "5px 12px",
-                background: "rgba(52,211,153,0.08)",
-                border: "1px solid rgba(52,211,153,0.22)",
+                background: "rgba(5,118,66,0.08)",
+                border: "1px solid rgba(5,118,66,0.22)",
                 borderRadius: 100,
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontSize: 10,
-                color: "#34d399",
-                letterSpacing: "0.08em",
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 11,
+                color: "#057642",
+                fontWeight: 600,
+                letterSpacing: "0.04em",
               }}
             >
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399" }} />
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#057642", animation: "glow-pulse 2s ease infinite" }} />
               Active
             </div>
           </div>
         </div>
 
-        {/* Section ownership placeholder */}
-        <div
-          style={{
-            background: "#0c0f1d",
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: 16,
-            padding: "28px",
-            marginBottom: 24,
-          }}
-        >
-          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#4a5578", letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 14 }}>
-            Your Sections
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        {/* Subscription card */}
+        {(() => {
+          const activeTier = subscription?.status === "active" ? subscription.tier : null;
+          const cfg = TIER_CONFIG[activeTier ?? "free"];
+          const isActive = subscription?.status === "active";
+          const isCancelled = subscription?.status === "cancelled";
+          const renewalDate = subscription?.current_period_end
+            ? new Date(subscription.current_period_end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : null;
+
+          return (
             <div
               style={{
-                width: 48, height: 48, borderRadius: 12,
-                border: "1px dashed rgba(255,255,255,0.10)",
-                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "#FFFFFF",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: 12,
+                padding: "24px 28px",
+                marginBottom: 24,
+                boxShadow: "0 1px 8px rgba(0,0,0,0.05)",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4a5578" strokeWidth="1.4">
-                <rect x="3" y="3" width="7" height="7" rx="1"/>
-                <rect x="14" y="3" width="7" height="7" rx="1"/>
-                <rect x="3" y="14" width="7" height="7" rx="1"/>
-                <rect x="14" y="14" width="7" height="7" rx="1"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#8492b8", marginBottom: 4 }}>
-                No sections purchased yet
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: cfg.color }} />
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 16 }}>
+                Manage Subscription
               </div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#4a5578" }}>
-                Browse the billboard and claim your spot
-              </div>
+
+              {subLoading ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, height: 48 }}>
+                  <div style={{ width: 16, height: 16, border: "2px solid rgba(10,102,194,0.2)", borderTopColor: "#0A66C2", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF" }}>Loading...</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 10, background: cfg.bg, border: `1px solid ${cfg.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={cfg.color} strokeWidth="1.6">
+                      {activeTier === "premium" ? (
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      ) : activeTier === "standard" ? (
+                        <><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M16 3.13a4 4 0 010 7.75"/></>
+                      ) : activeTier === "basic" ? (
+                        <><circle cx="12" cy="7" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></>
+                      ) : (
+                        <><circle cx="12" cy="7" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></>
+                      )}
+                    </svg>
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3, flexWrap: "wrap" }}>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 16, color: "#191919" }}>
+                        {cfg.label} Plan
+                      </span>
+                      {isActive && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 10px", background: "rgba(5,118,66,0.08)", border: "1px solid rgba(5,118,66,0.22)", borderRadius: 100, fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#057642", fontWeight: 700, letterSpacing: "0.04em" }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#057642", display: "inline-block", animation: "glow-pulse 2s ease infinite" }} />
+                          Active
+                        </span>
+                      )}
+                      {isCancelled && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 10px", background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.22)", borderRadius: 100, fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#DC2626", fontWeight: 700, letterSpacing: "0.04em" }}>
+                          Cancelled
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF" }}>
+                      {isActive && activeTier
+                        ? `${TIER_PRICES[activeTier] ?? ""}${renewalDate ? ` · Renews ${renewalDate}` : ""}`
+                        : isCancelled && renewalDate
+                        ? `Access until ${renewalDate}`
+                        : "Upgrade to unlock premium profile features"}
+                    </div>
+                  </div>
+
+                  <Link
+                    href="/subscription/manage"
+                    style={{
+                      marginLeft: "auto",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "9px 22px",
+                      background: "#0A66C2",
+                      border: "1px solid #0A66C2",
+                      borderRadius: 20,
+                      color: "#fff",
+                      fontFamily: "'Inter', sans-serif",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      textDecoration: "none",
+                      flexShrink: 0,
+                      transition: "background 150ms, border-color 150ms",
+                    }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLAnchorElement;
+                      el.style.background = "#004182";
+                      el.style.borderColor = "#004182";
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLAnchorElement;
+                      el.style.background = "#0A66C2";
+                      el.style.borderColor = "#0A66C2";
+                    }}
+                  >
+                    {isActive ? "Manage" : "Upgrade"}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                  </Link>
+                </div>
+              )}
             </div>
-            <Link
-              href="/grid/1"
-              style={{
-                marginLeft: "auto",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "9px 20px",
-                background: "#6366f1",
-                borderRadius: 8,
-                color: "#fff",
-                fontFamily: "'Inter', sans-serif",
-                fontWeight: 600,
-                fontSize: 13,
-                textDecoration: "none",
-                flexShrink: 0,
-                transition: "background 150ms",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "#5254cc"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "#6366f1"; }}
-            >
-              Browse
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-            </Link>
+          );
+        })()}
+
+        {/* Interview rate callout */}
+        <div
+          style={{
+            background: "rgba(5,118,66,0.06)",
+            border: "1px solid rgba(5,118,66,0.18)",
+            borderRadius: 12,
+            padding: "18px 24px",
+            marginBottom: 24,
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+          }}
+        >
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(5,118,66,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#057642" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 14, color: "#057642", marginBottom: 3 }}>
+              87% interview callback rate
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555" }}>
+              Members with an active subscription get discovered 3× more than traditional applicants.
+            </div>
           </div>
         </div>
 
         {/* Quick links */}
-        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#4a5578", letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 12 }}>
           Quick Links
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
@@ -306,27 +399,30 @@ export default function DashboardPage() {
                 alignItems: "flex-start",
                 gap: 12,
                 padding: "18px 18px",
-                background: "#0c0f1d",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12,
+                background: "#FFFFFF",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: 10,
                 textDecoration: "none",
-                transition: "border-color 150ms, transform 150ms",
+                transition: "border-color 150ms, transform 150ms, box-shadow 150ms",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.16)";
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,0,0,0.18)";
                 (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-1px)";
+                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.07)";
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(0,0,0,0.08)";
                 (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)";
+                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
               }}
             >
               <div style={{ color: link.color, flexShrink: 0, marginTop: 1 }}>{link.icon}</div>
               <div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, color: "#f0f2fa", marginBottom: 3 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, color: "#191919", marginBottom: 3 }}>
                   {link.label}
                 </div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#4a5578" }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF" }}>
                   {link.desc}
                 </div>
               </div>
@@ -336,7 +432,7 @@ export default function DashboardPage() {
 
       </div>
 
-      <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } @keyframes glow-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </main>
   );
 }
