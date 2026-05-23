@@ -1,4 +1,4 @@
-from typing import Annotated, List
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -8,17 +8,9 @@ from database import get_db
 from middleware.rate_limit import limiter
 from models.section import PixelSection
 from routers.auth import get_current_user_id
-from schemas.section import GridSectionResponse, SectionResponse, SectionUpdateRequest
+from schemas.section import SectionResponse, SectionUpdateRequest
 
 router = APIRouter(prefix="/sections", tags=["sections"])
-
-
-@router.get("/page/{page_number}", response_model=List[GridSectionResponse])
-@limiter.limit("60/minute")
-async def get_page_sections(request: Request, page_number: int, db: Session = Depends(get_db)):
-    if page_number not in (1, 2, 3):
-        raise HTTPException(status_code=400, detail="page_number must be 1, 2, or 3")
-    return db.query(PixelSection).filter(PixelSection.page_number == page_number).all()
 
 
 @router.get("/{section_id}", response_model=SectionResponse)
