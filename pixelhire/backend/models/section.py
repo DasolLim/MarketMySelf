@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, SmallInteger, Integer, Numeric, Boolean, DateTime, Text, ARRAY, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from models.base import Base
 
 
@@ -24,6 +24,12 @@ class PixelSection(Base):
     portfolio_url = Column(String, nullable=True)
     job_category = Column(String, nullable=True)
     skills = Column(ARRAY(Text), default=[])
+    experience_level = Column(String, nullable=True)
+    tech_skills = Column(ARRAY(Text), default=[])
+    soft_skills = Column(ARRAY(Text), default=[])
+    resume_path = Column(String, nullable=True)
+    resume_url = Column(String, nullable=True)
+    links = Column(JSONB, nullable=True)
 
     image_path = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
