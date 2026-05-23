@@ -6,35 +6,47 @@
 
 :root {
   /* ── Backgrounds ─────────────────────────────────────── */
-  --bg-base:     #07080f;
-  --bg-surface:  #0c0f1d;
-  --bg-elevated: #111627;
-  --bg-hover:    #161d30;
+  --bg-base:     #F3F2EF;
+  --bg-surface:  #FFFFFF;
+  --bg-elevated: #F8F7F5;
+  --bg-hover:    #EEF0F2;
 
   /* ── Borders ─────────────────────────────────────────── */
-  --border:      rgba(255, 255, 255, 0.07);
-  --border-mid:  rgba(255, 255, 255, 0.12);
-  --border-hover:rgba(255, 255, 255, 0.20);
+  --border:       rgba(0, 0, 0, 0.08);
+  --border-mid:   rgba(0, 0, 0, 0.15);
+  --border-hover: rgba(0, 0, 0, 0.25);
 
   /* ── Typography ──────────────────────────────────────── */
-  --text-1: #f0f2fa;
-  --text-2: #8492b8;
-  --text-3: #4a5578;
-  --text-4: #232b42;
+  --text-1: #191919;
+  --text-2: #555555;
+  --text-3: #9CA3AF;
+  --text-4: #D1D5DB;
 
-  /* ── Brand ───────────────────────────────────────────── */
-  --indigo:       #6366f1;
-  --indigo-light: #818cf8;
-  --indigo-faint: rgba(99, 102, 241, 0.10);
-  --indigo-glow:  rgba(99, 102, 241, 0.30);
-  --amber:        #f59e0b;
-  --amber-faint:  rgba(245, 158, 11, 0.08);
-  --amber-glow:   rgba(245, 158, 11, 0.28);
+  /* ── Brand — LinkedIn Blue ───────────────────────────── */
+  --indigo:       #0A66C2;
+  --indigo-light: #3B82F6;
+  --indigo-faint: rgba(10, 102, 194, 0.08);
+  --indigo-glow:  rgba(10, 102, 194, 0.20);
 
-  /* ── Categories ──────────────────────────────────────── */
-  --tech:  #22d3ee;
-  --mkt:   #c084fc;
-  --fin:   #34d399;
+  /* ── Success green ───────────────────────────────────── */
+  --success:       #057642;
+  --success-faint: rgba(5, 118, 66, 0.08);
+  --success-mid:   rgba(5, 118, 66, 0.18);
+
+  /* ── Amber ───────────────────────────────────────────── */
+  --amber:       #B45309;
+  --amber-faint: rgba(180, 83, 9, 0.06);
+  --amber-glow:  rgba(180, 83, 9, 0.15);
+
+  /* ── Categories (billboard only) ────────────────────── */
+  --tech: #0A66C2;
+  --mkt:  #7C3AED;
+  --fin:  #057642;
+
+  /* ── Shadows ─────────────────────────────────────────── */
+  --shadow-sm: 0 0 0 1px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-md: 0 0 0 1px rgba(0,0,0,0.08), 0 4px 20px rgba(0,0,0,0.09);
+  --shadow-lg: 0 0 0 1px rgba(0,0,0,0.08), 0 8px 32px rgba(0,0,0,0.12);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -81,8 +93,8 @@ html, body {
 }
 
 @keyframes glow-pulse {
-  0%, 100% { opacity: 1;   box-shadow: 0 0 6px var(--indigo); }
-  50%       { opacity: 0.6; box-shadow: 0 0 12px var(--indigo); }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
 }
 
 @keyframes spin {
@@ -130,6 +142,6 @@ html, body {
 
 /* focus ring */
 :focus-visible {
-  outline: 2px solid var(--indigo);
+  outline: 2px solid #0A66C2;
   outline-offset: 2px;
 }
