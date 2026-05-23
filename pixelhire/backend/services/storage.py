@@ -30,3 +30,16 @@ def delete_profile_image(image_path: str) -> None:
     client = get_storage_client()
     bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "profiles")
     client.storage.from_(bucket).remove([image_path])
+
+
+def upload_resume(user_id: str, filename: str, data: bytes) -> tuple[str, str]:
+    client = get_storage_client()
+    bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "profiles")
+    path = f"resumes/{user_id}/{filename}"
+    client.storage.from_(bucket).upload(
+        path=path,
+        file=data,
+        file_options={"content-type": "application/pdf", "upsert": "true"},
+    )
+    url = client.storage.from_(bucket).get_public_url(path)
+    return path, url
