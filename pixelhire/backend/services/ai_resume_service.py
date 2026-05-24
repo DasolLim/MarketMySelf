@@ -92,6 +92,7 @@ async def call_openrouter(
     model: str,
     temperature: float = 0.0,
     max_tokens: int = 1000,
+    tools: list[dict] | None = None,
 ) -> tuple[str, int, int, int]:
     start = time.monotonic()
     headers = {
@@ -106,6 +107,8 @@ async def call_openrouter(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if tools:
+        payload["tools"] = tools
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             f"{OPENROUTER_BASE_URL}/chat/completions",

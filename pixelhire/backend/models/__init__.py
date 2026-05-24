@@ -10,6 +10,8 @@ from models.coaching_session import CoachingSession
 from models.scraped_job import ScrapedJob
 from models.resume_analysis import ResumeAnalysis
 from models.prompt_template import PromptTemplate
+from models.cover_letter import CoverLetter
+from models.interview_prep import QuestionSet, InterviewAnswer, InterviewSession
 
 __all__ = [
     "Base",
@@ -24,4 +26,8 @@ __all__ = [
     "ScrapedJob",
     "ResumeAnalysis",
     "PromptTemplate",
+    "CoverLetter",
+    "QuestionSet",
+    "InterviewAnswer",
+    "InterviewSession",
 ]

@@ -354,6 +354,31 @@ export interface RewriterResult {
   metrics_needed:  Array<{ bullet: string; question_to_ask: string }>;
 }
 
+// ── Cover Letter ──────────────────────────────────────────────────────────────
+
+export interface CoverLetterResponse {
+  cover_letter_id:   string;
+  cover_letter_text: string;
+  character_count:   number;
+  tone_used:         string;
+  key_connections:   string[];
+  model_used:        string;
+  latency_ms:        number;
+  created_at:        string;
+}
+
+export interface CoverLetterHistoryItem {
+  cover_letter_id: string;
+  job_position:    string;
+  company:         string;
+  character_count: number;
+  created_at:      string;
+}
+
+export interface DefaultWritingStyleResponse {
+  writing_style: string;
+}
+
 export const JOB_SOURCE_LABELS: Record<string, string> = {
   dice:      "Dice",
   serpapi:   "Google Jobs",
@@ -370,6 +395,112 @@ export const JOB_CATEGORIES = [
   "engineering", "data", "finance", "design",
   "marketing", "sales", "operations", "product", "other",
 ] as const;
+
+// ── Interview Prep ────────────────────────────────────────────────────────────
+
+export type QuestionCategory = "behavioral" | "situational" | "competency" | "culture_fit";
+export type QuestionDifficulty = "warm_up" | "core" | "challenge";
+export type ClosingCategory = "role_clarity" | "team_culture" | "growth_impact" | "process_tooling";
+export type ShareQuality = "weak" | "adequate" | "strong";
+
+export interface InterviewQuestion {
+  id:           number;
+  question:     string;
+  category:     QuestionCategory;
+  target_skill: string;
+  difficulty:   QuestionDifficulty;
+  hint:         string;
+}
+
+export interface ClosingQuestion {
+  question: string;
+  category: ClosingCategory;
+  why_ask:  string;
+}
+
+export interface ShareComponentDetail {
+  present:  boolean;
+  quality:  ShareQuality;
+  feedback: string;
+}
+
+export interface ShareBreakdown {
+  situation:  ShareComponentDetail;
+  hindrance:  ShareComponentDetail;
+  action:     ShareComponentDetail;
+  result:     ShareComponentDetail;
+  evaluation: ShareComponentDetail;
+}
+
+export interface QuestionSetResponse {
+  question_set_id:     string;
+  job_position:        string;
+  company:             string;
+  interview_stage:     string | null;
+  questions:           InterviewQuestion[];
+  closing_questions:   ClosingQuestion[];
+  role_summary:        string | null;
+  interview_stage_note: string | null;
+  key_themes:          string[];
+  research_sources:    string[];
+  model_used:          string;
+  latency_ms:          number;
+  created_at:          string;
+}
+
+export interface QuestionSetHistoryItem {
+  question_set_id: string;
+  job_position:    string;
+  company:         string;
+  num_questions:   number;
+  created_at:      string;
+}
+
+export interface AnswerFeedbackResponse {
+  answer_id:       string;
+  question_text:   string;
+  overall_score:   number;
+  score_rationale: string;
+  strongest_part:  string;
+  critical_gap:    string;
+  improved_answer: string;
+  one_line_tip:    string;
+  share_breakdown: ShareBreakdown;
+  model_used:      string;
+  latency_ms:      number;
+  created_at:      string;
+}
+
+export interface AnswerHistoryItem {
+  answer_id:     string;
+  question_text: string;
+  overall_score: number | null;
+  job_position:  string;
+  company:       string;
+  created_at:    string;
+}
+
+export interface InterviewSessionResponse {
+  session_id:         string;
+  job_position:       string;
+  company:            string;
+  questions_total:    number;
+  questions_answered: number;
+  avg_score:          number | null;
+  completed_at:       string | null;
+  created_at:         string;
+}
+
+export interface SessionHistoryItem {
+  session_id:         string;
+  job_position:       string;
+  company:            string;
+  questions_total:    number;
+  questions_answered: number;
+  avg_score:          number | null;
+  completed_at:       string | null;
+  created_at:         string;
+}
 
 // Legacy aliases — kept for backward compatibility with auth-gated dashboard page
 export interface ScrapedJobFilters {

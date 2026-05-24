@@ -6,19 +6,36 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
   analyzeResume,
+  createInterviewSession,
   fetchCoachingHistory,
   fetchProfile,
+  generateCoverLetter,
+  generateQuestionSet,
+  getAnswerHistory,
+  getCoverLetter,
+  getCoverLetterHistory,
+  getDefaultWritingStyle,
+  getQuestionSet,
+  getQuestionSetHistory,
   getResumeAnalysis,
   getResumeAnalysisHistory,
-  startInterviewPrep,
-  submitResumeForCoaching,
+  submitInterviewAnswer,
+  updateInterviewSession,
 } from "@/lib/api";
 import {
+  AnswerFeedbackResponse,
+  ClosingQuestion,
   CoachingSession,
+  CoverLetterHistoryItem,
+  CoverLetterResponse,
   DiagnoserResult,
   FeatureType,
   HiringManagerResult,
+  InterviewQuestion,
+  InterviewSessionResponse,
   PixelSection,
+  QuestionSetHistoryItem,
+  QuestionSetResponse,
   RecruiterResult,
   ResumeAnalysisHistoryItem,
   ResumeAnalysisResponse,
@@ -512,6 +529,218 @@ function HiringManagerCard({ result }: { result: HiringManagerResult }) {
   );
 }
 
+// ── Cover Letter helpers ───────────────────────────────────────────────────────
+
+function relativeDate(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7)  return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+function CoverLetterResultCard({
+  result,
+  onClear,
+}: {
+  result: CoverLetterResponse;
+  onClear: () => void;
+}) {
+  const [editedText, setEditedText] = React.useState(result.cover_letter_text);
+  const [copied, setCopied]         = React.useState(false);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(editedText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 4 }}>Cover Letter</div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555" }}>
+            {result.tone_used && <span>{result.tone_used} · </span>}
+            {editedText.length.toLocaleString()} chars
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={handleCopy}
+            style={{ padding: "6px 16px", background: copied ? "rgba(5,118,66,0.08)" : "#FAFAFA", border: `1px solid ${copied ? "rgba(5,118,66,0.22)" : "rgba(0,0,0,0.14)"}`, borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 12, color: copied ? "#057642" : "#555555", cursor: "pointer", transition: "all 150ms" }}
+          >
+            {copied ? "Copied ✓" : "Copy ↗"}
+          </button>
+          <button
+            onClick={onClear}
+            style={{ padding: "6px 14px", background: "none", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", cursor: "pointer" }}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        value={editedText}
+        onChange={(e) => setEditedText(e.target.value)}
+        style={{ width: "100%", minHeight: 260, padding: "16px 18px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.07)", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", lineHeight: 1.8, resize: "vertical", outline: "none", boxSizing: "border-box", marginBottom: result.key_connections.length ? 16 : 0 }}
+        onFocus={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.18)"; }}
+        onBlur={(e)  => { e.target.style.borderColor = "rgba(0,0,0,0.07)"; }}
+      />
+
+      {result.key_connections.length > 0 && (
+        <div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 10 }}>Key connections made by AI</div>
+          <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 5 }}>
+            {result.key_connections.map((c, i) => (
+              <li key={i} style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555", lineHeight: 1.65 }}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Interview Prep components ─────────────────────────────────────────────────
+
+const DIFFICULTY_COLORS: Record<string, { bg: string; color: string }> = {
+  warm_up:   { bg: "rgba(5,118,66,0.08)",   color: "#057642" },
+  core:      { bg: "rgba(10,102,194,0.08)",  color: "#0A66C2" },
+  challenge: { bg: "rgba(239,68,68,0.08)",   color: "#DC2626" },
+};
+const CATEGORY_COLORS_IP: Record<string, string> = {
+  behavioral:   "#0A66C2",
+  situational:  "#7C3AED",
+  competency:   "#D97706",
+  culture_fit:  "#059669",
+};
+const SHARE_QUALITY_COLORS: Record<string, { color: string }> = {
+  weak:     { color: "#DC2626" },
+  adequate: { color: "#D97706" },
+  strong:   { color: "#057642" },
+};
+const CLOSING_CATEGORY_LABELS: Record<string, string> = {
+  role_clarity:    "Role Clarity",
+  team_culture:    "Team & Culture",
+  growth_impact:   "Growth & Impact",
+  process_tooling: "Process & Tooling",
+};
+
+function QuestionCard({ q, index, onStart }: { q: InterviewQuestion; index: number; onStart?: () => void }) {
+  const diff = DIFFICULTY_COLORS[q.difficulty] ?? DIFFICULTY_COLORS.core;
+  const catColor = CATEGORY_COLORS_IP[q.category] ?? "#555555";
+  return (
+    <div style={{ padding: "14px 18px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <span style={{ width: 26, height: 26, borderRadius: "50%", background: "#0A66C2", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, fontFamily: "'Inter', sans-serif", flexShrink: 0, marginTop: 1 }}>{index + 1}</span>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: "#191919", margin: "0 0 8px", lineHeight: 1.55 }}>{q.question}</p>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", background: diff.bg, color: diff.color }}>{q.difficulty.replace("_", " ")}</span>
+            <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif", background: "rgba(0,0,0,0.04)", color: catColor }}>{q.category.replace("_", " ")}</span>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF" }}>{q.target_skill}</span>
+          </div>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", margin: "8px 0 0", lineHeight: 1.55, fontStyle: "italic" }}>{q.hint}</p>
+        </div>
+        {onStart && (
+          <button onClick={onStart} style={{ flexShrink: 0, padding: "5px 14px", background: "#0A66C2", border: "none", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
+            Practice
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ShareBreakdownCard({ breakdown }: { breakdown: AnswerFeedbackResponse["share_breakdown"] }) {
+  const bd = breakdown as unknown as Record<string, { present: boolean; quality: string; feedback: string }>;
+  const labels: Record<string, string> = { situation: "S — Situation", hindrance: "H — Hindrance", action: "A — Action", result: "R — Result", evaluation: "E — Evaluation" };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {Object.entries(labels).map(([key, label]) => {
+        const part = bd[key] ?? { present: false, quality: "weak", feedback: "" };
+        const qc = SHARE_QUALITY_COLORS[part.quality] ?? SHARE_QUALITY_COLORS.weak;
+        return (
+          <div key={key} style={{ padding: "10px 14px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 700, color: "#191919" }}>{label}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {!part.present && <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#DC2626", fontWeight: 600, textTransform: "uppercase" }}>Missing</span>}
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700, color: qc.color, textTransform: "uppercase" }}>{part.quality}</span>
+              </div>
+            </div>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", margin: 0, lineHeight: 1.6 }}>{part.feedback}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FeedbackCard({
+  feedback,
+  onHearImproved,
+  ttsPlaying,
+}: {
+  feedback: AnswerFeedbackResponse;
+  onHearImproved: () => void;
+  ttsPlaying: boolean;
+}) {
+  const score = feedback.overall_score ?? 0;
+  const scoreColor = score >= 80 ? "#057642" : score >= 55 ? "#D97706" : "#DC2626";
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "20px 24px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ width: 68, height: 68, borderRadius: "50%", border: `4px solid ${scoreColor}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 20, fontWeight: 800, color: scoreColor }}>{score}</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", fontWeight: 600, margin: "0 0 4px" }}>{feedback.score_rationale}</p>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", margin: 0 }}>SHARE score</p>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div style={{ padding: "10px 14px", background: "rgba(5,118,66,0.04)", border: "1px solid rgba(5,118,66,0.12)", borderRadius: 8 }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#057642", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Strongest part</div>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#191919", margin: 0, lineHeight: 1.6 }}>{feedback.strongest_part}</p>
+        </div>
+        <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.12)", borderRadius: 8 }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#DC2626", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Critical gap</div>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#191919", margin: 0, lineHeight: 1.6 }}>{feedback.critical_gap}</p>
+        </div>
+      </div>
+
+      {feedback.one_line_tip && (
+        <div style={{ padding: "10px 14px", background: "rgba(10,102,194,0.04)", border: "1px solid rgba(10,102,194,0.12)", borderRadius: 8, marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#0A66C2", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>One-line tip</div>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#191919", fontWeight: 600, margin: 0 }}>{feedback.one_line_tip}</p>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 8 }}>SHARE Breakdown</div>
+        <ShareBreakdownCard breakdown={feedback.share_breakdown} />
+      </div>
+
+      <button
+        onClick={onHearImproved}
+        disabled={ttsPlaying}
+        style={{ padding: "8px 20px", background: ttsPlaying ? "rgba(10,102,194,0.4)" : "#0A66C2", border: "none", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#fff", cursor: ttsPlaying ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 150ms" }}
+      >
+        {ttsPlaying
+          ? (<><div style={{ width: 11, height: 11, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />Speaking...</>)
+          : (<><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Hear Improved Answer</>)}
+      </button>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const FEATURES: Array<{ id: FeatureType; name: string; description: string }> = [
@@ -532,16 +761,64 @@ export default function CoachingPage() {
   const { accessToken, isLoading, role } = useAuth();
   const router = useRouter();
 
-  // Existing state
   const [profile, setProfile] = useState<PixelSection | null>(null);
   const [sessions, setSessions] = useState<CoachingSession[]>([]);
   const [fetching, setFetching] = useState(true);
-  const [resumeText, setResumeText] = useState("");
-  const [submittingResume, setSubmittingResume] = useState(false);
   const [submittingInterview, setSubmittingInterview] = useState(false);
   const [activeSession, setActiveSession] = useState<CoachingSession | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"resume" | "interview" | "analyze">("resume");
+  const [tab, setTab] = useState<"cover-letter" | "interview" | "analyze">("cover-letter");
+
+  // Interview Prep — shared state
+  const [sharedResumeFile, setSharedResumeFile]     = useState<File | null>(null);
+  const sharedResumeFileRef                         = useRef<HTMLInputElement>(null);
+  const sharedResumeUploadRef                       = useRef<HTMLDivElement>(null);
+
+  // Interview Prep — tab state
+  const [ipSubTab, setIpSubTab] = useState<"generate" | "practice" | "ask-back">("generate");
+  const [ipForm, setIpForm] = useState({ job_position: "", company: "", job_description: "", num_questions: 10, interview_stage: "" });
+  const [ipGenerating, setIpGenerating] = useState(false);
+  const [ipQuestionSet, setIpQuestionSet] = useState<QuestionSetResponse | null>(null);
+  const [ipError, setIpError] = useState<string | null>(null);
+  const [ipSession, setIpSession] = useState<InterviewSessionResponse | null>(null);
+  const [ipCurrentQ, setIpCurrentQ] = useState(0);
+  const [ipAnswer, setIpAnswer] = useState("");
+  const [ipFeedback, setIpFeedback] = useState<AnswerFeedbackResponse | null>(null);
+  const [ipSubmitting, setIpSubmitting] = useState(false);
+  const [ipAnsweredMap, setIpAnsweredMap] = useState<Record<number, AnswerFeedbackResponse>>({});
+  const [ipTtsPlaying, setIpTtsPlaying] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const cameraRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const [ipQHistory, setIpQHistory] = useState<QuestionSetHistoryItem[]>([]);
+  const [ipQHistoryExpanded, setIpQHistoryExpanded] = useState(false);
+  const [ipQHistoryLoading, setIpQHistoryLoading] = useState(false);
+
+  // Interview Prep — chip input for manual questions
+  const [chipInput, setChipInput] = useState("");
+  const [manualQuestions, setManualQuestions] = useState<Array<{id: string; question: string}>>([]);
+  const [editingChipId, setEditingChipId] = useState<string | null>(null);
+  const [editingChipText, setEditingChipText] = useState("");
+
+  // Cover Letter tab state
+  const [clForm, setCLForm] = useState({
+    job_position: "",
+    company: "",
+    job_description: "",
+    writing_style: "",
+    max_characters: 1500,
+  });
+  const [clFile, setCLFile] = useState<File | null>(null);
+  const [clStyleLoaded, setCLStyleLoaded] = useState(false);
+  const [clStyleLoading, setCLStyleLoading] = useState(false);
+  const [clGenerating, setCLGenerating] = useState(false);
+  const [clResult, setCLResult] = useState<CoverLetterResponse | null>(null);
+  const [clError, setCLError] = useState<string | null>(null);
+  const [clHistory, setCLHistory] = useState<CoverLetterHistoryItem[]>([]);
+  const [clHistoryExpanded, setCLHistoryExpanded] = useState(false);
+  const [clHistoryLoading, setCLHistoryLoading] = useState(false);
+  const clFileRef = useRef<HTMLInputElement>(null);
 
   // AI Analyze tab state
   const [analyzeForm, setAnalyzeForm] = useState({ job_position: "", company: "", job_description: "" });
@@ -571,39 +848,276 @@ export default function CoachingPage() {
       .finally(() => setFetching(false));
   }, [accessToken]);
 
-  async function handleResumeSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    if (tab !== "cover-letter" || clStyleLoaded || !accessToken) return;
+    setCLStyleLoading(true);
+    getDefaultWritingStyle(accessToken)
+      .then((style) => {
+        setCLForm((f) => ({ ...f, writing_style: f.writing_style || style }));
+        setCLStyleLoaded(true);
+      })
+      .catch(() => {})
+      .finally(() => setCLStyleLoading(false));
+  }, [tab, clStyleLoaded, accessToken]);
+
+  async function handleCoverLetterSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!accessToken || !resumeText.trim()) return;
-    setError(null);
-    setSubmittingResume(true);
+    if (!accessToken || !clFile) return;
+    setCLError(null);
+    setCLResult(null);
+    setCLGenerating(true);
     try {
-      const result = await submitResumeForCoaching(resumeText, accessToken);
-      const session: CoachingSession = { id: result.id, user_id: "", type: "resume", input_text: resumeText, feedback: result.feedback, questions: null, created_at: result.created_at };
-      setSessions((s) => [session, ...s]);
-      setActiveSession(session);
-      setResumeText("");
+      const fd = new FormData();
+      fd.append("job_position", clForm.job_position);
+      fd.append("company", clForm.company);
+      fd.append("job_description", clForm.job_description);
+      fd.append("writing_style", clForm.writing_style);
+      fd.append("max_characters", String(clForm.max_characters));
+      if (clFile) fd.append("resume", clFile);
+      const result = await generateCoverLetter(fd, accessToken);
+      setCLResult(result);
+      setCLHistory([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Submission failed");
+      setCLError(err instanceof Error ? err.message : "Generation failed");
     } finally {
-      setSubmittingResume(false);
+      setCLGenerating(false);
     }
   }
 
-  async function handleInterviewStart() {
-    if (!accessToken) return;
-    setError(null);
-    setSubmittingInterview(true);
+  async function handleCLHistoryExpand() {
+    if (clHistoryExpanded) { setCLHistoryExpanded(false); return; }
+    setCLHistoryExpanded(true);
+    if (!accessToken || clHistory.length > 0) return;
+    setCLHistoryLoading(true);
     try {
-      const result = await startInterviewPrep(profile?.job_category ?? null, profile?.tech_skills ?? [], accessToken);
-      const session: CoachingSession = { id: result.id, user_id: "", type: "interview", input_text: null, feedback: null, questions: result.questions, created_at: result.created_at };
-      setSessions((s) => [session, ...s]);
-      setActiveSession(session);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate questions");
+      const h = await getCoverLetterHistory(accessToken);
+      setCLHistory(h);
+    } catch {
+      setCLHistoryExpanded(false);
     } finally {
-      setSubmittingInterview(false);
+      setCLHistoryLoading(false);
     }
   }
+
+  async function handleCLHistoryClick(item: CoverLetterHistoryItem) {
+    if (!accessToken) return;
+    try {
+      const res = await getCoverLetter(item.cover_letter_id, accessToken);
+      setCLResult(res);
+      setCLError(null);
+    } catch { /* ignore */ }
+  }
+
+  // ── Interview Prep handlers ────────────────────────────────────────────────
+
+  function speakText(text: string) {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 0.95;
+    utt.onend = () => setIpTtsPlaying(false);
+    utt.onerror = () => setIpTtsPlaying(false);
+    setIpTtsPlaying(true);
+    window.speechSynthesis.speak(utt);
+  }
+
+  function stopCamera() {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
+    setCameraActive(false);
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      cameraStreamRef.current = stream;
+      if (cameraRef.current) {
+        cameraRef.current.srcObject = stream;
+      }
+      setCameraActive(true);
+    } catch {
+      setIpError("Camera access denied. You can still type your answers.");
+    }
+  }
+
+  async function handleIPGenerate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!accessToken) return;
+    setIpError(null);
+    setIpGenerating(true);
+    try {
+      const fd = new FormData();
+      fd.append("job_position", ipForm.job_position);
+      fd.append("company", ipForm.company);
+      fd.append("job_description", ipForm.job_description);
+      fd.append("num_questions", String(ipForm.num_questions));
+      fd.append("interview_stage", ipForm.interview_stage);
+      if (sharedResumeFile) fd.append("resume", sharedResumeFile);
+      const qs = await generateQuestionSet(fd, accessToken);
+      setIpQuestionSet(qs);
+      setIpCurrentQ(0);
+      setIpAnswer("");
+      setIpFeedback(null);
+      setIpAnsweredMap({});
+      setIpSession(null);
+      setIpQHistory([]);
+      setManualQuestions([]);
+    } catch (err) {
+      setIpError(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setIpGenerating(false);
+    }
+  }
+
+  function handleChipKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const text = chipInput.trim();
+      if (!text) return;
+      setManualQuestions((prev) => [...prev, { id: crypto.randomUUID(), question: text }]);
+      setChipInput("");
+    }
+  }
+
+  function deleteChip(id: string) {
+    setManualQuestions((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function startEditChip(id: string, text: string) {
+    setEditingChipId(id);
+    setEditingChipText(text);
+  }
+
+  function confirmEditChip(id: string) {
+    const text = editingChipText.trim();
+    if (text) setManualQuestions((prev) => prev.map((c) => c.id === id ? { ...c, question: text } : c));
+    setEditingChipId(null);
+    setEditingChipText("");
+  }
+
+  // Reset hint when question changes
+  React.useEffect(() => { setHintOpen(false); }, [ipCurrentQ]);
+
+  function getAllPracticeQuestions(qs: QuestionSetResponse | null): InterviewQuestion[] {
+    const aiQs = (qs?.questions ?? []) as InterviewQuestion[];
+    const manualQs: InterviewQuestion[] = manualQuestions.map((mq, i) => ({
+      id: 9000 + i,
+      question: mq.question,
+      category: "behavioral" as const,
+      target_skill: "General",
+      difficulty: "core" as const,
+      hint: "",
+    }));
+    return [...aiQs, ...manualQs];
+  }
+
+  async function handleIPStartPractice() {
+    if (!accessToken || !ipQuestionSet) return;
+    const allQs = getAllPracticeQuestions(ipQuestionSet);
+    try {
+      const sess = await createInterviewSession(
+        {
+          question_set_id: ipQuestionSet.question_set_id,
+          job_position: ipQuestionSet.job_position,
+          company: ipQuestionSet.company,
+          questions_total: allQs.length,
+        },
+        accessToken,
+      );
+      setIpSession(sess);
+    } catch { /* non-fatal */ }
+    setIpCurrentQ(0);
+    setIpAnswer("");
+    setIpFeedback(null);
+    setIpAnsweredMap({});
+    setIpSubTab("practice");
+    const q = allQs[0];
+    if (q) setTimeout(() => speakText(q.question), 300);
+  }
+
+  async function handleIPSubmitAnswer() {
+    if (!accessToken || !ipQuestionSet || !ipAnswer.trim()) return;
+    const allQs = getAllPracticeQuestions(ipQuestionSet);
+    const q = allQs[ipCurrentQ];
+    if (!q) return;
+    setIpSubmitting(true);
+    setIpFeedback(null);
+    try {
+      const fb = await submitInterviewAnswer(
+        {
+          question_set_id: ipQuestionSet.question_set_id,
+          question_text: q.question,
+          question_category: q.category,
+          target_skill: q.target_skill,
+          candidate_answer: ipAnswer,
+          job_position: ipQuestionSet.job_position,
+          company: ipQuestionSet.company,
+        },
+        accessToken,
+      );
+      setIpFeedback(fb);
+      setIpAnsweredMap((m) => ({ ...m, [ipCurrentQ]: fb }));
+
+      if (ipSession && accessToken) {
+        const answered = Object.keys({ ...ipAnsweredMap, [ipCurrentQ]: fb }).length;
+        const scores = Object.values({ ...ipAnsweredMap, [ipCurrentQ]: fb }).map((f) => f.overall_score);
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        updateInterviewSession(ipSession.session_id, { questions_answered: answered, avg_score: avg }, accessToken).catch(() => {});
+      }
+    } catch (err) {
+      setIpError(err instanceof Error ? err.message : "Submission failed");
+    } finally {
+      setIpSubmitting(false);
+    }
+  }
+
+  function handleIPNavigate(dir: "next" | "prev") {
+    if (!ipQuestionSet) return;
+    const allQs = getAllPracticeQuestions(ipQuestionSet);
+    const next = dir === "next"
+      ? Math.min(ipCurrentQ + 1, allQs.length - 1)
+      : Math.max(ipCurrentQ - 1, 0);
+    setIpCurrentQ(next);
+    setIpAnswer("");
+    setIpFeedback(ipAnsweredMap[next] ?? null);
+    const q = allQs[next];
+    if (q) setTimeout(() => speakText(q.question), 200);
+  }
+
+  async function handleIPQHistoryExpand() {
+    if (ipQHistoryExpanded) { setIpQHistoryExpanded(false); return; }
+    setIpQHistoryExpanded(true);
+    if (!accessToken || ipQHistory.length > 0) return;
+    setIpQHistoryLoading(true);
+    try {
+      const h = await getQuestionSetHistory(accessToken);
+      setIpQHistory(h);
+    } catch {
+      setIpQHistoryExpanded(false);
+    } finally {
+      setIpQHistoryLoading(false);
+    }
+  }
+
+  async function handleIPQHistoryClick(item: QuestionSetHistoryItem) {
+    if (!accessToken) return;
+    try {
+      const qs = await getQuestionSet(item.question_set_id, accessToken);
+      setIpQuestionSet(qs);
+      setIpCurrentQ(0);
+      setIpAnswer("");
+      setIpFeedback(null);
+      setIpAnsweredMap({});
+      setIpSession(null);
+    } catch { /* ignore */ }
+  }
+
+  // Clean up camera on unmount or tab change
+  React.useEffect(() => {
+    if (tab !== "interview") stopCamera();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAnalyzeSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -679,6 +1193,12 @@ export default function CoachingPage() {
     selectedFile &&
     selectedFeature;
 
+  const clReady =
+    clForm.job_position.trim() &&
+    clForm.company.trim() &&
+    clForm.job_description.trim() &&
+    !!clFile;
+
   const featureLabels: Record<FeatureType, string> = {
     diagnoser:      "Resume Diagnoser",
     recruiter:      "Resume Recruiter",
@@ -713,7 +1233,7 @@ export default function CoachingPage() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 0, marginBottom: 20, background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-          {(["resume", "interview", "analyze"] as const).map((t) => (
+          {(["cover-letter", "interview", "analyze"] as const).map((t) => (
             <button
               key={t}
               onClick={() => { setTab(t); setActiveSession(null); setError(null); }}
@@ -730,7 +1250,7 @@ export default function CoachingPage() {
                 transition: "background 150ms, color 150ms",
               }}
             >
-              {t === "resume" ? "Resume Review" : t === "interview" ? "Interview Prep" : "AI Analyze"}
+              {t === "cover-letter" ? "Cover Letter" : t === "interview" ? "Interview Prep" : "AI Analyze"}
             </button>
           ))}
         </div>
@@ -739,68 +1259,635 @@ export default function CoachingPage() {
           <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.22)", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#DC2626", marginBottom: 16 }}>{error}</div>
         )}
 
-        {/* Resume tab */}
-        {tab === "resume" && !activeSession && (
-          <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 20 }}>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 16 }}>Paste your resume</div>
-            <form onSubmit={handleResumeSubmit}>
-              <textarea
-                value={resumeText}
-                onChange={(e) => setResumeText(e.target.value)}
-                placeholder="Paste the text of your resume here for AI-powered feedback..."
-                style={{ width: "100%", minHeight: 200, padding: "12px 14px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.65 }}
-                onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
-                onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
-              />
-              <button
-                type="submit"
-                disabled={submittingResume || !resumeText.trim()}
-                style={{ marginTop: 14, padding: "10px 26px", background: submittingResume ? "rgba(10,102,194,0.5)" : "#0A66C2", border: "none", borderRadius: 20, color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, cursor: submittingResume || !resumeText.trim() ? "not-allowed" : "pointer", transition: "background 150ms", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                {submittingResume ? (<><div style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />Analyzing...</>) : "Get AI feedback"}
-              </button>
-            </form>
-          </div>
-        )}
+        {/* Cover Letter tab */}
+        {tab === "cover-letter" && (
+          <>
+            <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 20 }}>Generate cover letter</div>
 
-        {/* Interview tab */}
-        {tab === "interview" && !activeSession && (
-          <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 20 }}>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 14 }}>Interview questions</div>
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#555555", marginBottom: 18, lineHeight: 1.65 }}>
-              Generate tailored interview questions based on your profile&apos;s category
-              {profile?.job_category ? ` (${profile.job_category})` : ""} and skills.
-            </p>
-            <button
-              onClick={handleInterviewStart}
-              disabled={submittingInterview}
-              style={{ padding: "10px 26px", background: submittingInterview ? "rgba(10,102,194,0.5)" : "#0A66C2", border: "none", borderRadius: 20, color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, cursor: submittingInterview ? "not-allowed" : "pointer", transition: "background 150ms", display: "inline-flex", alignItems: "center", gap: 8 }}>
-              {submittingInterview ? (<><div style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />Generating...</>) : "Generate questions"}
-            </button>
-          </div>
-        )}
+              {clError && (
+                <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.22)", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#DC2626", marginBottom: 16 }}>
+                  {clError}
+                </div>
+              )}
 
-        {/* Active session result (resume/interview) */}
-        {(tab === "resume" || tab === "interview") && activeSession && (
-          <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase" }}>
-                {activeSession.type === "resume" ? "Resume feedback" : "Interview questions"}
-              </div>
-              <button onClick={() => setActiveSession(null)} style={{ background: "none", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 20, padding: "5px 14px", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555" }}>New session</button>
+              <form onSubmit={handleCoverLetterSubmit}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                  {(["job_position", "company"] as const).map((field) => (
+                    <div key={field}>
+                      <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>
+                        {field === "job_position" ? "Job Position *" : "Company *"}
+                      </label>
+                      <input
+                        type="text"
+                        value={clForm[field]}
+                        onChange={(e) => setCLForm((f) => ({ ...f, [field]: e.target.value }))}
+                        required
+                        placeholder={field === "job_position" ? "e.g. Software Engineer" : "e.g. Google"}
+                        style={{ width: "100%", padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", outline: "none", boxSizing: "border-box" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>Job Description *</label>
+                  <textarea
+                    value={clForm.job_description}
+                    onChange={(e) => setCLForm((f) => ({ ...f, job_description: e.target.value }))}
+                    required
+                    placeholder="Paste the full job description here..."
+                    style={{ width: "100%", minHeight: 120, padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.65 }}
+                    onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                    onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>
+                    Resume (PDF or DOCX) <span style={{ color: "#DC2626" }}>*</span>
+                  </label>
+                  <div
+                    onClick={() => clFileRef.current?.click()}
+                    style={{ border: `2px dashed ${clFile ? "#0A66C2" : "rgba(0,0,0,0.18)"}`, borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", background: clFile ? "rgba(10,102,194,0.03)" : "#FAFAFA", transition: "border-color 150ms, background 150ms" }}
+                  >
+                    <div style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(10,102,194,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A66C2" strokeWidth="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#191919", fontWeight: 600 }}>
+                        {clFile ? clFile.name : "Upload your resume"}
+                      </div>
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF" }}>
+                        {clFile ? `${(clFile.size / 1024).toFixed(0)} KB` : "PDF or DOCX · Max 10 MB"}
+                      </div>
+                    </div>
+                    {clFile && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setCLFile(null); if (clFileRef.current) clFileRef.current.value = ""; }}
+                        style={{ background: "none", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 20, padding: "3px 10px", fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", cursor: "pointer" }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={clFileRef}
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    style={{ display: "none" }}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) { setCLFile(f); setCLError(null); } }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>Writing Style</label>
+                  <textarea
+                    value={clStyleLoading ? "" : clForm.writing_style}
+                    onChange={(e) => setCLForm((f) => ({ ...f, writing_style: e.target.value }))}
+                    rows={4}
+                    placeholder={clStyleLoading ? "Loading default style…" : "Describe the tone and style…"}
+                    style={{ width: "100%", padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#191919", outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.65, opacity: clStyleLoading ? 0.5 : 1 }}
+                    onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                    onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                  />
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>Customise the tone and style of your letter</div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <label style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600 }}>Max Length</label>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", fontWeight: 600 }}>
+                      {clResult
+                        ? `Generated: ${clResult.character_count.toLocaleString()} / ${clForm.max_characters.toLocaleString()} chars`
+                        : `Max: ${clForm.max_characters.toLocaleString()} characters`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={500}
+                    max={3000}
+                    step={100}
+                    value={clForm.max_characters}
+                    onChange={(e) => setCLForm((f) => ({ ...f, max_characters: Number(e.target.value) }))}
+                    style={{ width: "100%", accentColor: "#0A66C2" }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", marginTop: 3 }}>
+                    <span>500</span><span>3,000</span>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!clReady || clGenerating}
+                  style={{ padding: "10px 28px", background: !clReady || clGenerating ? "rgba(10,102,194,0.4)" : "#0A66C2", border: "none", borderRadius: 20, color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, cursor: !clReady || clGenerating ? "not-allowed" : "pointer", transition: "background 150ms", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  {clGenerating
+                    ? (<><div style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />Generating...</>)
+                    : "Generate Cover Letter"}
+                </button>
+              </form>
             </div>
-            {activeSession.type === "resume" && activeSession.feedback && (
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
-                {activeSession.feedback}
+
+            {clResult && (
+              <CoverLetterResultCard result={clResult} onClear={() => setCLResult(null)} />
+            )}
+
+            <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, boxShadow: "0 1px 8px rgba(0,0,0,0.04)", overflow: "hidden", marginBottom: 16 }}>
+              <button
+                onClick={handleCLHistoryExpand}
+                style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+              >
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, color: "#191919" }}>Previous Cover Letters</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" style={{ transform: clHistoryExpanded ? "rotate(180deg)" : "none", transition: "transform 150ms" }}><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              {clHistoryExpanded && (
+                <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", padding: "12px 16px" }}>
+                  {clHistoryLoading ? (
+                    <div style={{ display: "flex", justifyContent: "center", padding: 20 }}>
+                      <div style={{ width: 16, height: 16, border: "2px solid rgba(10,102,194,0.2)", borderTopColor: "#0A66C2", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />
+                    </div>
+                  ) : clHistory.length === 0 ? (
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF", textAlign: "center", padding: "16px 0", margin: 0 }}>No cover letters yet. Generate your first one above.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {clHistory.map((item) => (
+                        <button
+                          key={item.cover_letter_id}
+                          onClick={() => handleCLHistoryClick(item)}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, cursor: "pointer", textAlign: "left", width: "100%", transition: "border-color 150ms" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(0,0,0,0.18)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(0,0,0,0.08)")}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#191919", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {item.job_position}
+                            </span>
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", flexShrink: 0 }}>· {item.company}</span>
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{item.character_count.toLocaleString()} chars</span>
+                          </div>
+                          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", flexShrink: 0, marginLeft: 10 }}>
+                            {relativeDate(item.created_at)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Interview Prep tab */}
+        {tab === "interview" && (
+          <>
+            {/* Shared resume upload — above sub-tabs */}
+            <div ref={sharedResumeUploadRef} id="shared-resume-upload" style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "16px 20px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 10 }}>Your Resume (optional)</div>
+              <div
+                onClick={() => sharedResumeFileRef.current?.click()}
+                style={{ border: `2px dashed ${sharedResumeFile ? "#0A66C2" : "rgba(0,0,0,0.16)"}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: sharedResumeFile ? "rgba(10,102,194,0.03)" : "#FAFAFA", transition: "border-color 150ms" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A66C2" strokeWidth="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: sharedResumeFile ? "#191919" : "#9CA3AF", flex: 1 }}>
+                  {sharedResumeFile ? sharedResumeFile.name : "Upload your resume for more targeted questions (PDF or DOCX)"}
+                </span>
+                {sharedResumeFile && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSharedResumeFile(null); if (sharedResumeFileRef.current) sharedResumeFileRef.current.value = ""; }} style={{ background: "none", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 20, padding: "2px 8px", fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", cursor: "pointer" }}>Remove</button>
+                )}
+              </div>
+              <input ref={sharedResumeFileRef} type="file" accept=".pdf,.docx" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { setSharedResumeFile(f); setIpError(null); } }} />
+            </div>
+
+            {/* Sub-tab navigation */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 16, background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, overflow: "hidden" }}>
+              {(["generate", "practice", "ask-back"] as const).map((st) => {
+                const labels = { generate: "Question Bank", practice: "Mock Interview", "ask-back": "Questions to Ask" };
+                const active = ipSubTab === st;
+                return (
+                  <button
+                    key={st}
+                    onClick={() => setIpSubTab(st)}
+                    style={{ flex: 1, padding: "10px 12px", background: active ? "rgba(10,102,194,0.08)" : "transparent", border: "none", borderBottom: `2px solid ${active ? "#0A66C2" : "transparent"}`, color: active ? "#0A66C2" : "#555555", fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer", transition: "all 150ms" }}
+                  >
+                    {labels[st]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {ipError && (
+              <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.22)", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#DC2626", marginBottom: 14 }}>{ipError}</div>
+            )}
+
+            {/* Section A: Question Bank */}
+            {ipSubTab === "generate" && (
+              <>
+                <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 14 }}>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 20 }}>Generate tailored questions</div>
+                  <form onSubmit={handleIPGenerate}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      {(["job_position", "company"] as const).map((field) => (
+                        <div key={field}>
+                          <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>
+                            {field === "job_position" ? "Job Position *" : "Company *"}
+                          </label>
+                          <input
+                            type="text"
+                            value={ipForm[field]}
+                            onChange={(e) => setIpForm((f) => ({ ...f, [field]: e.target.value }))}
+                            required
+                            placeholder={field === "job_position" ? "e.g. Software Engineer" : "e.g. Google"}
+                            style={{ width: "100%", padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", outline: "none", boxSizing: "border-box" }}
+                            onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                            onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>Interview Stage</label>
+                      <input
+                        type="text"
+                        value={ipForm.interview_stage}
+                        onChange={(e) => setIpForm((f) => ({ ...f, interview_stage: e.target.value }))}
+                        placeholder="e.g. Phone screen, Final round, Technical interview"
+                        style={{ width: "100%", padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", outline: "none", boxSizing: "border-box" }}
+                        onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>Job Description *</label>
+                      <textarea
+                        value={ipForm.job_description}
+                        onChange={(e) => setIpForm((f) => ({ ...f, job_description: e.target.value }))}
+                        required
+                        placeholder="Paste the full job description to get role-specific questions..."
+                        style={{ width: "100%", minHeight: 110, padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.65 }}
+                        onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <label style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600 }}>Number of AI Questions</label>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", fontWeight: 700 }}>{ipForm.num_questions}</span>
+                      </div>
+                      <input type="range" min={5} max={20} step={1} value={ipForm.num_questions} onChange={(e) => setIpForm((f) => ({ ...f, num_questions: Number(e.target.value) }))} style={{ width: "100%", accentColor: "#0A66C2" }} />
+                      <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", marginTop: 3 }}>
+                        <span>5 (quick)</span><span>20 (full prep)</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={!ipForm.job_position.trim() || !ipForm.company.trim() || !ipForm.job_description.trim() || ipGenerating}
+                      style={{ padding: "10px 28px", background: ipGenerating ? "rgba(10,102,194,0.4)" : "#0A66C2", border: "none", borderRadius: 20, color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 14, cursor: ipGenerating ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 150ms" }}
+                    >
+                      {ipGenerating ? (<><div style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />Generating...</>) : "Generate Questions"}
+                    </button>
+                  </form>
+
+                  {/* Manual question chip input */}
+                  <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(0,0,0,0.07)" }}>
+                    <label style={{ display: "block", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#555555", fontWeight: 600, marginBottom: 5 }}>Add Your Own Questions</label>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", margin: "0 0 10px", lineHeight: 1.55 }}>Press Enter to add. Click a chip to edit, × to remove.</p>
+                    {manualQuestions.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                        {manualQuestions.map((mq) => (
+                          <div key={mq.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", background: "rgba(10,102,194,0.06)", border: "1px solid rgba(10,102,194,0.18)", borderRadius: 20, maxWidth: 320 }}>
+                            {editingChipId === mq.id ? (
+                              <input
+                                autoFocus
+                                value={editingChipText}
+                                onChange={(e) => setEditingChipText(e.target.value)}
+                                onBlur={() => confirmEditChip(mq.id)}
+                                onKeyDown={(e) => { if (e.key === "Enter") confirmEditChip(mq.id); if (e.key === "Escape") { setEditingChipId(null); setEditingChipText(""); } }}
+                                style={{ border: "none", outline: "none", background: "transparent", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", width: 180 }}
+                              />
+                            ) : (
+                              <span
+                                onClick={() => startEditChip(mq.id, mq.question)}
+                                style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", cursor: "text", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}
+                                title={mq.question}
+                              >
+                                {mq.question}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => deleteChip(mq.id)}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", lineHeight: 1, padding: 0, fontSize: 14, flexShrink: 0 }}
+                            >×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {((ipQuestionSet?.questions.length ?? 0) + manualQuestions.length) > 20 && (
+                      <div style={{ padding: "8px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#D97706", marginBottom: 8 }}>
+                        You have more than 20 practice questions. Consider removing some for a focused session.
+                      </div>
+                    )}
+                    <textarea
+                      value={chipInput}
+                      onChange={(e) => setChipInput(e.target.value)}
+                      onKeyDown={handleChipKeyDown}
+                      placeholder="Type a question and press Enter to add..."
+                      rows={2}
+                      style={{ width: "100%", padding: "10px 12px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#191919", outline: "none", boxSizing: "border-box", resize: "none", lineHeight: 1.55 }}
+                      onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                      onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.14)"; e.target.style.boxShadow = "none"; }}
+                    />
+                  </div>
+                </div>
+
+                {/* Question set result */}
+                {ipQuestionSet && (
+                  <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)", marginBottom: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                      <div>
+                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, color: "#191919" }}>{ipQuestionSet.job_position} at {ipQuestionSet.company}</div>
+                        {ipQuestionSet.interview_stage && (
+                          <span style={{ display: "inline-block", marginTop: 4, padding: "2px 8px", background: "rgba(10,102,194,0.06)", border: "1px solid rgba(10,102,194,0.16)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#0A66C2", fontWeight: 500 }}>{ipQuestionSet.interview_stage}</span>
+                        )}
+                        {ipQuestionSet.role_summary && (
+                          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555", margin: "6px 0 0", lineHeight: 1.6 }}>{ipQuestionSet.role_summary}</p>
+                        )}
+                        {ipQuestionSet.interview_stage_note && (
+                          <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(10,102,194,0.04)", border: "1px solid rgba(10,102,194,0.12)", borderRadius: 8 }}>
+                            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", margin: 0, lineHeight: 1.6 }}>{ipQuestionSet.interview_stage_note}</p>
+                          </div>
+                        )}
+                        {ipQuestionSet.research_sources && ipQuestionSet.research_sources.length > 0 && (
+                          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", margin: "6px 0 0" }}>
+                            Sources: {ipQuestionSet.research_sources.slice(0, 3).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleIPStartPractice}
+                        style={{ padding: "8px 20px", background: "#0A66C2", border: "none", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        Start Mock Interview →
+                      </button>
+                    </div>
+
+                    {ipQuestionSet.key_themes.length > 0 && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+                        {ipQuestionSet.key_themes.map((t, i) => (
+                          <span key={i} style={{ padding: "3px 10px", background: "rgba(10,102,194,0.06)", border: "1px solid rgba(10,102,194,0.16)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", fontWeight: 500 }}>{t}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 10 }}>
+                      {ipQuestionSet.questions.length} AI Questions
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {(ipQuestionSet.questions as InterviewQuestion[]).map((q, i) => (
+                        <QuestionCard key={i} q={q} index={i} onStart={() => { setIpCurrentQ(i); handleIPStartPractice(); }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* History */}
+                <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, boxShadow: "0 1px 8px rgba(0,0,0,0.04)", overflow: "hidden", marginBottom: 14 }}>
+                  <button onClick={handleIPQHistoryExpand} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, color: "#191919" }}>Previous Question Sets</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" style={{ transform: ipQHistoryExpanded ? "rotate(180deg)" : "none", transition: "transform 150ms" }}><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                  {ipQHistoryExpanded && (
+                    <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", padding: "12px 16px" }}>
+                      {ipQHistoryLoading ? (
+                        <div style={{ display: "flex", justifyContent: "center", padding: 20 }}><div style={{ width: 16, height: 16, border: "2px solid rgba(10,102,194,0.2)", borderTopColor: "#0A66C2", borderRadius: "50%", animation: "spin 600ms linear infinite" }} /></div>
+                      ) : ipQHistory.length === 0 ? (
+                        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF", textAlign: "center", padding: "16px 0", margin: 0 }}>No question sets yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {ipQHistory.map((item) => (
+                            <button key={item.question_set_id} onClick={() => handleIPQHistoryClick(item)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, cursor: "pointer", textAlign: "left", width: "100%", transition: "border-color 150ms" }} onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(0,0,0,0.18)")} onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(0,0,0,0.08)")}>
+                              <div>
+                                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#191919" }}>{item.job_position}</span>
+                                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", marginLeft: 8 }}>· {item.company}</span>
+                                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", marginLeft: 8 }}>{item.num_questions} questions</span>
+                              </div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", flexShrink: 0, marginLeft: 10 }}>{relativeDate(item.created_at)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Section B: Mock Interview Room */}
+            {ipSubTab === "practice" && (
+              <>
+                {!ipQuestionSet ? (
+                  <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "40px 28px", textAlign: "center", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#9CA3AF", margin: "0 0 16px" }}>Generate a question set first to start practicing.</p>
+                    <button onClick={() => setIpSubTab("generate")} style={{ padding: "8px 20px", background: "#0A66C2", border: "none", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>Go to Question Bank</button>
+                  </div>
+                ) : (() => {
+                  const allQs = getAllPracticeQuestions(ipQuestionSet);
+                  const q = allQs[ipCurrentQ] as InterviewQuestion | undefined;
+                  const diff = q ? (DIFFICULTY_COLORS[q.difficulty] ?? DIFFICULTY_COLORS.core) : DIFFICULTY_COLORS.core;
+                  const initials = profile?.full_name
+                    ? profile.full_name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+                    : "?";
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                      {/* Room header */}
+                      <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF" }}>
+                            Question {ipCurrentQ + 1} of {allQs.length}
+                          </span>
+                          {ipSession && (
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#0A66C2" }}>
+                              · {Object.keys(ipAnsweredMap).length} answered
+                            </span>
+                          )}
+                          {ipQuestionSet.interview_stage && (
+                            <span style={{ padding: "2px 8px", background: "rgba(10,102,194,0.06)", border: "1px solid rgba(10,102,194,0.16)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#0A66C2", fontWeight: 500 }}>
+                              {ipQuestionSet.interview_stage}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {sharedResumeFile ? (
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#057642", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#057642" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                              {sharedResumeFile.name}
+                              <button type="button" onClick={() => sharedResumeUploadRef.current?.scrollIntoView({ behavior: "smooth" })} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", padding: 0 }}>Change</button>
+                            </span>
+                          ) : (
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF" }}>
+                              No resume —{" "}
+                              <button type="button" onClick={() => { setIpSubTab("generate"); setTimeout(() => sharedResumeUploadRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#0A66C2", padding: 0 }}>Upload</button>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Camera — centered, max 720px, 16:9, mirrored */}
+                      <div style={{ width: "100%", maxWidth: 720, background: "#000", borderRadius: 12, overflow: "hidden", aspectRatio: "16 / 9", position: "relative" }}>
+                        {cameraActive ? (
+                          <video ref={cameraRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "#111827" }}>
+                            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(10,102,194,0.2)", border: "2px solid rgba(10,102,194,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 22, fontWeight: 700, color: "#0A66C2" }}>{initials}</span>
+                            </div>
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#6B7280" }}>Camera off</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Camera controls */}
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {!cameraActive ? (
+                          <button onClick={startCamera} style={{ padding: "7px 18px", background: "none", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="15" height="10" rx="2"/><path d="M17 12l5-3v6l-5-3z"/></svg>
+                            Turn on Camera
+                          </button>
+                        ) : (
+                          <button onClick={stopCamera} style={{ padding: "7px 18px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.22)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#DC2626", cursor: "pointer" }}>Stop Camera</button>
+                        )}
+                        <button
+                          onClick={() => { if (q) speakText(q.question); }}
+                          disabled={ipTtsPlaying || !q}
+                          style={{ padding: "7px 18px", background: "none", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555", cursor: ipTtsPlaying || !q ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                          Read aloud
+                        </button>
+                      </div>
+
+                      {/* Question card */}
+                      <div style={{ width: "100%", background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "20px 24px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+                        <div style={{ height: 3, background: "rgba(0,0,0,0.06)", borderRadius: 3, marginBottom: 16, overflow: "hidden" }}>
+                          <div style={{ height: "100%", background: "#0A66C2", borderRadius: 3, width: `${((ipCurrentQ + 1) / allQs.length) * 100}%`, transition: "width 0.3s ease" }} />
+                        </div>
+
+                        {q && (
+                          <>
+                            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                              <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", background: diff.bg, color: diff.color }}>{q.difficulty.replace("_", " ")}</span>
+                              <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif", background: "rgba(0,0,0,0.04)", color: CATEGORY_COLORS_IP[q.category] ?? "#555" }}>{q.category.replace("_", " ")}</span>
+                              {!!ipAnsweredMap[ipCurrentQ] && <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", background: "rgba(5,118,66,0.08)", color: "#057642" }}>Answered ✓</span>}
+                            </div>
+                            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, fontWeight: 700, color: "#191919", margin: "0 0 10px", lineHeight: 1.5 }}>{q.question}</p>
+                            {q.hint && (
+                              <div style={{ marginBottom: 14 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setHintOpen((v) => !v)}
+                                  style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", display: "inline-flex", alignItems: "center", gap: 4, padding: 0 }}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: hintOpen ? "rotate(180deg)" : "none", transition: "transform 150ms" }}><path d="M6 9l6 6 6-6"/></svg>
+                                  {hintOpen ? "Hide hint" : "Show hint"}
+                                </button>
+                                {hintOpen && (
+                                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", margin: "6px 0 0", fontStyle: "italic", lineHeight: 1.6 }}>{q.hint}</p>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        <textarea
+                          value={ipAnswer}
+                          onChange={(e) => setIpAnswer(e.target.value)}
+                          placeholder="Type your answer here using the SHARE framework: Situation → Hindrance → Action → Result → Evaluation"
+                          style={{ width: "100%", minHeight: 130, padding: "12px 14px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", lineHeight: 1.75, outline: "none", boxSizing: "border-box", resize: "vertical" }}
+                          onFocus={(e) => { e.target.style.borderColor = "#0A66C2"; e.target.style.boxShadow = "0 0 0 3px rgba(10,102,194,0.10)"; }}
+                          onBlur={(e) => { e.target.style.borderColor = "rgba(0,0,0,0.12)"; e.target.style.boxShadow = "none"; }}
+                        />
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => handleIPNavigate("prev")}
+                              disabled={ipCurrentQ === 0}
+                              style={{ padding: "7px 16px", background: "none", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, color: ipCurrentQ === 0 ? "#D1D5DB" : "#555555", cursor: ipCurrentQ === 0 ? "not-allowed" : "pointer" }}
+                            >← Prev</button>
+                            <button
+                              onClick={() => handleIPNavigate("next")}
+                              disabled={ipCurrentQ === allQs.length - 1}
+                              style={{ padding: "7px 16px", background: "none", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, color: ipCurrentQ === allQs.length - 1 ? "#D1D5DB" : "#555555", cursor: ipCurrentQ === allQs.length - 1 ? "not-allowed" : "pointer" }}
+                            >Next →</button>
+                          </div>
+                          <button
+                            onClick={handleIPSubmitAnswer}
+                            disabled={!ipAnswer.trim() || ipSubmitting}
+                            style={{ padding: "8px 22px", background: !ipAnswer.trim() || ipSubmitting ? "rgba(10,102,194,0.4)" : "#0A66C2", border: "none", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#fff", cursor: !ipAnswer.trim() || ipSubmitting ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 150ms" }}
+                          >
+                            {ipSubmitting ? (<><div style={{ width: 11, height: 11, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 600ms linear infinite" }} />Evaluating...</>) : "Get Feedback"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Answer Coach */}
+                      {(ipFeedback || ipAnsweredMap[ipCurrentQ]) && (
+                        <div style={{ width: "100%" }}>
+                          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 10 }}>Answer Coach</div>
+                          <FeedbackCard
+                            feedback={ipFeedback ?? ipAnsweredMap[ipCurrentQ]}
+                            onHearImproved={() => {
+                              const fb = ipFeedback ?? ipAnsweredMap[ipCurrentQ];
+                              if (fb.improved_answer) speakText(fb.improved_answer);
+                            }}
+                            ttsPlaying={ipTtsPlaying}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+            {/* Section C: Questions to Ask */}
+            {ipSubTab === "ask-back" && (
+              <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 6 }}>Questions to ask the interviewer</div>
+                {!ipQuestionSet ? (
+                  <div style={{ textAlign: "center", padding: "32px 0" }}>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#9CA3AF", margin: "0 0 14px" }}>Generate a question set first to see tailored closing questions.</p>
+                    <button onClick={() => setIpSubTab("generate")} style={{ padding: "7px 18px", background: "#0A66C2", border: "none", borderRadius: 20, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>Generate Questions</button>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#555555", margin: "0 0 18px", lineHeight: 1.65 }}>
+                      For <strong>{ipQuestionSet.job_position}</strong> at <strong>{ipQuestionSet.company}</strong>. These show genuine interest and strategic thinking.
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {(ipQuestionSet.closing_questions as ClosingQuestion[]).map((q, i) => (
+                        <div key={i} style={{ padding: "14px 18px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: "#191919", margin: 0, lineHeight: 1.5, flex: 1 }}>{q.question}</p>
+                            <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif", background: "rgba(10,102,194,0.06)", color: "#0A66C2", flexShrink: 0, whiteSpace: "nowrap" }}>{CLOSING_CATEGORY_LABELS[q.category] ?? q.category}</span>
+                          </div>
+                          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", margin: 0, lineHeight: 1.55, fontStyle: "italic" }}>{q.why_ask}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
-            {activeSession.type === "interview" && activeSession.questions && (
-              <ol style={{ paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-                {activeSession.questions.map((q, i) => (
-                  <li key={i} style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#191919", lineHeight: 1.65 }}>{q}</li>
-                ))}
-              </ol>
-            )}
-          </div>
+          </>
         )}
 
         {/* AI Analyze tab */}
@@ -1023,31 +2110,6 @@ export default function CoachingPage() {
           </>
         )}
 
-        {/* Past sessions (resume/interview tabs) */}
-        {(tab === "resume" || tab === "interview") && sessions.length > 0 && (
-          <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 28px", boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9CA3AF", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 16 }}>Past sessions</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {sessions.slice(0, 5).map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveSession(s)}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#FAFAFA", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, cursor: "pointer", textAlign: "left", width: "100%", transition: "border-color 150ms" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(0,0,0,0.18)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(0,0,0,0.08)")}
-                >
-                  <div>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#191919" }}>
-                      {s.type === "resume" ? "Resume review" : "Interview prep"}
-                    </span>
-                    <span style={{ marginLeft: 10, fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF" }}>{new Date(s.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
       <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </main>

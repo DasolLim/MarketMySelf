@@ -1,6 +1,12 @@
 import {
+  AnswerFeedbackResponse,
+  AnswerHistoryItem,
   Application,
   CoachingSession,
+  CoverLetterHistoryItem,
+  CoverLetterResponse,
+  DefaultWritingStyleResponse,
+  InterviewSessionResponse,
   JobPost,
   JobPostPayload,
   LinksPayload,
@@ -8,6 +14,8 @@ import {
   Payment,
   PixelSection,
   ProfileUpdatePayload,
+  QuestionSetHistoryItem,
+  QuestionSetResponse,
   ResumeAnalysisHistoryItem,
   ResumeAnalysisResponse,
   ScrapedJob,
@@ -18,6 +26,7 @@ import {
   ScrapedJobsResponse,
   SearchFilters,
   SectionUpdatePayload,
+  SessionHistoryItem,
   Subscription,
   SubscriptionTierInfo,
   UserRole,
@@ -388,6 +397,46 @@ export async function getResumeAnalysis(analysisId: string, token: string): Prom
   });
 }
 
+export async function getDefaultWritingStyle(token: string): Promise<string> {
+  const data = await request<DefaultWritingStyleResponse>(
+    "/coaching/cover-letter/default-style",
+    { headers: authHeaders(token) },
+  );
+  return data.writing_style;
+}
+
+export async function generateCoverLetter(
+  formData: FormData,
+  token: string,
+): Promise<CoverLetterResponse> {
+  const res = await fetch(`${BASE}/coaching/cover-letter`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Generation failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getCoverLetterHistory(token: string): Promise<CoverLetterHistoryItem[]> {
+  return request<CoverLetterHistoryItem[]>("/coaching/cover-letter/history", {
+    headers: authHeaders(token),
+  });
+}
+
+export async function getCoverLetter(
+  coverLetterId: string,
+  token: string,
+): Promise<CoverLetterResponse> {
+  return request<CoverLetterResponse>(`/coaching/cover-letter/${coverLetterId}`, {
+    headers: authHeaders(token),
+  });
+}
+
+
 // ── Scraped Jobs (public job board) ──────────────────────────────────────────
 
 function buildScrapedJobSearchQuery(params: {
@@ -477,6 +526,108 @@ export async function getScrapedJobFacets(
   accessToken: string,
 ): Promise<ScrapedJobFacets> {
   return request<ScrapedJobFacets>("/scraped-jobs/facets", {
+    headers: authHeaders(accessToken),
+  });
+}
+
+// ── Interview Prep ────────────────────────────────────────────────────────────
+
+export async function generateQuestionSet(
+  formData: FormData,
+  accessToken: string,
+): Promise<QuestionSetResponse> {
+  const res = await fetch(`${BASE}/coaching/interview-prep/questions`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: formData,   // caller appends interview_stage field to FormData
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getQuestionSetHistory(
+  accessToken: string,
+): Promise<QuestionSetHistoryItem[]> {
+  return request<QuestionSetHistoryItem[]>("/coaching/interview-prep/questions/history", {
+    headers: authHeaders(accessToken),
+  });
+}
+
+export async function getQuestionSet(
+  questionSetId: string,
+  accessToken: string,
+): Promise<QuestionSetResponse> {
+  return request<QuestionSetResponse>(`/coaching/interview-prep/questions/${questionSetId}`, {
+    headers: authHeaders(accessToken),
+  });
+}
+
+export async function submitInterviewAnswer(
+  payload: {
+    question_set_id?: string;
+    question_text: string;
+    question_category?: string;
+    target_skill?: string;
+    candidate_answer: string;
+    job_position: string;
+    company: string;
+  },
+  accessToken: string,
+): Promise<AnswerFeedbackResponse> {
+  return request<AnswerFeedbackResponse>("/coaching/interview-prep/answers", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAnswerHistory(
+  accessToken: string,
+): Promise<AnswerHistoryItem[]> {
+  return request<AnswerHistoryItem[]>("/coaching/interview-prep/answers/history", {
+    headers: authHeaders(accessToken),
+  });
+}
+
+export async function createInterviewSession(
+  payload: {
+    question_set_id?: string;
+    job_position: string;
+    company: string;
+    questions_total: number;
+  },
+  accessToken: string,
+): Promise<InterviewSessionResponse> {
+  return request<InterviewSessionResponse>("/coaching/interview-prep/sessions", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateInterviewSession(
+  sessionId: string,
+  payload: {
+    questions_answered?: number;
+    avg_score?: number;
+    completed?: boolean;
+  },
+  accessToken: string,
+): Promise<InterviewSessionResponse> {
+  return request<InterviewSessionResponse>(`/coaching/interview-prep/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getSessionHistory(
+  accessToken: string,
+): Promise<SessionHistoryItem[]> {
+  return request<SessionHistoryItem[]>("/coaching/interview-prep/sessions/history", {
     headers: authHeaders(accessToken),
   });
 }
