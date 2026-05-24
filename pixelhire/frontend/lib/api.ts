@@ -1,6 +1,7 @@
 import {
   AnswerFeedbackResponse,
   AnswerHistoryItem,
+  GeneratedAnswerResponse,
   Application,
   CoachingSession,
   CoverLetterHistoryItem,
@@ -582,6 +583,22 @@ export async function submitInterviewAnswer(
     headers: authHeaders(accessToken),
     body: JSON.stringify(payload),
   });
+}
+
+export async function generateInterviewAnswer(
+  formData: FormData,
+  accessToken: string,
+): Promise<GeneratedAnswerResponse> {
+  const res = await fetch(`${BASE}/coaching/interview-prep/generate-answer`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function getAnswerHistory(

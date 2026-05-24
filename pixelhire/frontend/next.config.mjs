@@ -30,6 +30,7 @@ const nextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://*.supabase.co",
               "connect-src 'self' https://*.supabase.co https://api.stripe.com http://localhost:8000",
+              "media-src 'self' blob:",
               "frame-src https://js.stripe.com",
             ].join("; "),
           },

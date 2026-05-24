@@ -480,6 +480,13 @@ export interface AnswerHistoryItem {
   created_at:    string;
 }
 
+export interface GeneratedAnswerResponse {
+  model_answer:         string;
+  key_points:           string[];
+  personalization_note: string | null;
+  latency_ms:           number;
+}
+
 export interface InterviewSessionResponse {
   session_id:         string;
   job_position:       string;
