@@ -161,3 +161,12 @@ class SessionHistoryItem(BaseModel):
     created_at:         datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Generate model answer ─────────────────────────────────────────────────────
+
+class GeneratedAnswerResponse(BaseModel):
+    model_answer:         str
+    key_points:           list[str]
+    personalization_note: str | None
+    latency_ms:           int

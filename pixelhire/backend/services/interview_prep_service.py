@@ -338,6 +338,64 @@ async def create_question_set(
     )
 
 
+async def generate_model_answer(
+    question_text: str,
+    question_category: str | None,
+    target_skill: str | None,
+    job_position: str,
+    company: str,
+    file_bytes: bytes | None = None,
+    filename: str | None = None,
+) -> tuple[dict, int]:
+    resume_text: str | None = None
+    if file_bytes and filename:
+        try:
+            text, _ = extract_resume_text(file_bytes, filename)
+            resume_text = text
+        except ValueError:
+            pass
+
+    has_resume = bool(resume_text and resume_text.strip())
+    resume_section = f"\n\nCANDIDATE RESUME:\n{resume_text[:3000]}" if has_resume else ""
+
+    if has_resume:
+        instruction = (
+            "Using the candidate's resume above, generate a PERSONALIZED model answer "
+            "that directly references their actual experience, skills, and achievements. "
+            "Include a personalization_note (1-2 sentences) explaining which resume details you used."
+        )
+        note_placeholder = '"Brief note explaining which resume details were used"'
+    else:
+        instruction = (
+            "No resume was provided. Generate a strong model answer with clear placeholder "
+            "details like [Your Achievement], [Company Name], [Specific Metric]. "
+            "Show the structure and substance a strong candidate should deliver."
+        )
+        note_placeholder = "null"
+
+    prompt = f"""You are an expert interview coach. Generate a model answer for the following interview question.
+
+ROLE: {job_position} at {company}
+QUESTION CATEGORY: {question_category or "behavioral"}
+TARGET SKILL: {target_skill or "General"}
+QUESTION: {question_text}{resume_section}
+
+{instruction}
+
+Respond with ONLY valid JSON in this exact format:
+{{
+  "model_answer": "Full 2-4 paragraph answer using the SHARE framework (Situation, Hindrance, Action, Result, Evaluation). Natural conversational tone, 150-250 words.",
+  "key_points": ["3-5 specific elements this answer covers and why they strengthen it"],
+  "personalization_note": {note_placeholder}
+}}"""
+
+    raw, _, _, latency_ms = await call_openrouter(
+        prompt, FRONTIER_MODEL, temperature=0.4, max_tokens=1500
+    )
+    result, _ = safe_parse_json(raw)
+    return result or {}, latency_ms
+
+
 async def submit_and_evaluate_answer(
     question_set_id: uuid.UUID | None,
     question_text: str,

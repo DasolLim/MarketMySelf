@@ -23,6 +23,7 @@ from schemas.interview_prep import (
     AnswerFeedbackResponse,
     AnswerHistoryItem,
     CreateSessionRequest,
+    GeneratedAnswerResponse,
     GenerateQuestionsRequest,
     InterviewSessionResponse,
     QuestionSetHistoryItem,
@@ -42,6 +43,7 @@ from services.ai_resume_service import analyze_resume as analyze_resume_file
 from services.cover_letter_service import generate_cover_letter as _generate_cover_letter
 from services.interview_prep_service import (
     create_question_set as _create_question_set,
+    generate_model_answer as _generate_model_answer,
     submit_and_evaluate_answer as _submit_and_evaluate_answer,
     save_interview_session,
     update_interview_session as _update_interview_session,
@@ -536,6 +538,42 @@ async def interview_prep_submit_answer(
         model_used      = record.model_used,
         latency_ms      = record.latency_ms or 0,
         created_at      = record.created_at,
+    )
+
+
+@router.post("/interview-prep/generate-answer")
+@limiter.limit("10/minute")
+async def interview_prep_generate_answer(
+    request: Request,
+    ctx: Annotated[dict, Depends(require_role("seeker"))],
+    question_text:     str = Form(...),
+    job_position:      str = Form(...),
+    company:           str = Form(...),
+    question_category: str = Form(default=""),
+    target_skill:      str = Form(default=""),
+    resume: UploadFile = File(default=None),
+):
+    file_bytes: bytes | None = None
+    filename: str | None = None
+    if resume is not None:
+        file_bytes = await resume.read()
+        filename   = resume.filename or "resume"
+
+    result, latency_ms = await _generate_model_answer(
+        question_text=question_text,
+        question_category=question_category or None,
+        target_skill=target_skill or None,
+        job_position=job_position,
+        company=company,
+        file_bytes=file_bytes,
+        filename=filename,
+    )
+
+    return GeneratedAnswerResponse(
+        model_answer         = result.get("model_answer", ""),
+        key_points           = result.get("key_points", []),
+        personalization_note = result.get("personalization_note"),
+        latency_ms           = latency_ms,
     )
 
 
