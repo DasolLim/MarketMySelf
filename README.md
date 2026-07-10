@@ -99,21 +99,66 @@ MarketMySelf/
 
 ---
 
-## Core Features
+## Backend — Deep Dive
 
-**Talent billboard** — 9,000 purchasable pixel sections across 5 pages, priced by visibility tier. Owners edit their section with profile content, links, and imagery; companies browse and discover directly.
+Python 3.14 · FastAPI · SQLAlchemy 2.0 · PostgreSQL · demonstrating API design, relational modeling, auth, and production hardening.
 
-**AI career coaching**
-- *Résumé analysis* — structured, actionable feedback on clarity, impact, and skills presentation.
-- *Cover-letter generation* — tailored letters from a profile + job context, exportable to PDF.
-- *Interview prep* — role- and skill-targeted behavioral, technical, and situational questions.
-- Multi-model LLM routing selects frontier vs. cost-efficient models per task.
+### Routing & API design
+- **Modular router architecture** — 11 versioned `APIRouter` modules (`auth`, `sections`, `payments`, `subscriptions`, `jobs`, `scraped_jobs`, `applications`, `search`, `profile`, `ai_coaching`, `images`), each mounted with its own prefix and OpenAPI tag and composed in `main.py`.
+- **RESTful semantics** — correct verbs (`GET`/`POST`/`PATCH`/`DELETE`), explicit status codes (`201 Created`, `429`, `403`), and resource-oriented paths with typed path/query parameters (e.g. `PATCH /coaching/interview-prep/sessions/{session_id}`).
+- **Layered separation of concerns** — thin routers delegate to a `services/` layer for business logic, validate through **Pydantic v2** `schemas/`, and persist via SQLAlchemy `models/`. Auto-generated, environment-gated **Swagger/OpenAPI** docs (disabled in production).
+- **Async-first** — endpoints and the job pipeline are `async`, backed by connection pooling for concurrent throughput.
 
-**Job discovery** — aggregated, normalized, deduplicated listings from 18 sources, queryable through faceted Elasticsearch search (work type, experience level, employment type, skills, salary, location).
+### Authentication & authorization
+- **Layered identity** — credentials are verified against **Supabase Auth**, but the backend mints and validates its **own HS256 JWTs**, decoupling the API's session model from the provider.
+- **Access/refresh token rotation** — short-lived access tokens (15 min) paired with long-lived refresh tokens (30 days); `POST /auth/refresh` re-issues the pair and re-reads the user's current role on every refresh.
+- **Role-based access control (RBAC)** — the signed token carries a `role` claim (`seeker` / `recruiter`); a reusable `require_role(*roles)` dependency guards recruiter-only routes and returns `403` on mismatch.
+- **Secure credential handling** — bcrypt via `passlib`; registration uses the anon key to preserve the email-verification flow (a deliberate choice — the service key would auto-confirm and skip verification); password changes re-authenticate the current password before applying via the admin API.
 
-**Recruiter portal** — role-gated views for browsing talent, posting jobs, and managing candidates.
+### Middleware & hardening
+- **Per-endpoint rate limiting** — `slowapi` with granular limits (`5/min` on register/change-password, `10/min` on login) and a custom `429` JSON handler.
+- **Strict CORS** — explicit origin allow-list, method whitelist, and a curated header set (including `stripe-signature` for webhook verification).
+- **Input sanitization** — user-supplied HTML scrubbed with `bleach`; CSP headers enforced at the edge.
+- **Secrets discipline** — all keys via environment; access tokens never persisted server-side.
 
-**Payments & subscriptions** — Stripe-powered one-time section purchases and recurring plans.
+### Data & persistence (SQL / PostgreSQL)
+- **SQLAlchemy 2.0** modern `DeclarativeBase` ORM over Supabase-managed **PostgreSQL**.
+- **Tuned connection pool** — `pool_pre_ping`, `pool_size=10`, `max_overflow=20`, with a request-scoped `get_db` session dependency ensuring deterministic cleanup.
+- **Relational schema** — 14 models (`User`, `PixelSection`, `Payment`, `Subscription`, `JobPost`, `Application`, `ScrapedJob`, `CoachingSession`, `ResumeAnalysis`, `CoverLetter`, `InterviewPrep`, `Notification`, `PromptTemplate`) using **UUID primary keys**, schema-qualified tables, timezone-aware timestamps, and DB-side `server_default` values.
+- **Versioned migrations** — schema managed with **Alembic**.
+
+### AI integration
+- **Provider abstraction** — a service layer wraps both the native **Anthropic Claude SDK** and **OpenRouter**, with **multi-model routing** that selects a frontier model (`claude-sonnet-4`) for high-value tasks and a cost-efficient model (`gpt-4o-mini`) for cheaper ones — a real cost/quality tradeoff.
+- **Document pipeline** — résumés are ingested from PDF/DOCX (`pdfplumber`, `python-docx`), analyzed by the LLM, and generated artifacts (cover letters) are rendered back to PDF with `reportlab`.
+- **Persisted sessions** — every analysis, question set, and generated answer is stored and exposed through history endpoints.
+
+---
+
+## Frontend — Deep Dive
+
+Next.js 14 (App Router) · TypeScript · React 18 · demonstrating typed data access, complex authenticated UX, and full-stack integration.
+
+### Typed, full-stack API layer
+- A **650-line strongly-typed API client** (`lib/api.ts`) is the single boundary to the backend: a generic `request<T>()` wrapper centralizes base URL, JSON handling, and error propagation; helpers compose `authHeaders(token)` and `buildQuery()` for type-safe query strings; `FormData` used for multipart image/résumé uploads.
+- **Auth context** (`useAuth`) keeps the access token in memory only, persists the refresh token, and auto-restores the session on mount — mirroring the backend's rotation model on the client.
+
+### Real-time job discovery
+- **Continuously ingested listings** — job postings are sourced by the standalone async scraper (18 providers), normalized, deduplicated, and indexed into **Elasticsearch**, then served to the UI through `GET /scraped-jobs/search`.
+- **Faceted search UX** — `JobSearchFilters` drives multi-dimensional queries (query text, work type, experience level, employment type, skills, salary range, location) that map directly onto Elasticsearch facets for fast, relevance-ranked results.
+- **First-party postings too** — recruiters create/update/delete their own listings (`/jobs`), rendered alongside aggregated jobs via reusable `JobListingCard` / `ScrapedJobCard` components.
+
+### AI-powered user dashboard
+The authenticated dashboard (`/dashboard`) surfaces the AI coaching suite end-to-end:
+- **Résumé analysis** — drag-and-drop upload (`react-dropzone`) → backend extraction + LLM analysis → structured feedback with saved history.
+- **Cover-letter generator** — profile + job context → tailored letter with a configurable writing style, exportable to PDF.
+- **Interview prep** — generates targeted question sets, captures user answers, and produces AI model answers, all tracked across persisted sessions.
+- Each feature is a typed request/response round-trip through the API client, with loading, success, and error states styled from a shared design-token system.
+
+### Role-aware, component-driven UI
+- **Two experiences from one app** — a **seeker** dashboard (profile builder, applications, coaching) and a **recruiter portal** (`/recruiter` — talent search, job posting, candidate hiring), gated by the role claim.
+- **Reusable component library** — `TalentCard`, `ApplicationList`, `JobPostForm`, `SearchFilters`, `ResumeUpload`, `NotificationBadge`, `SubscriptionBadge`, and an interactive image cropper (`react-image-crop`).
+- **Interactive talent billboard** — the pixel-grid canvas with modal editors, plus **Stripe Checkout** (`@stripe/stripe-js`) for one-time section purchases and recurring subscriptions.
+- **Notifications** — recruiters message candidates; unread state is surfaced through a reusable count badge and read/unread endpoints.
 
 ---
 
