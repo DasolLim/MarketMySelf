@@ -1,7 +1,7 @@
-# PixelHire — Product Context
+# MarketMySelf — Product Context
 
 ## Product Purpose
-PixelHire is a talent billboard platform where professionals own a pixel section to market themselves to recruiters and companies. It replaces passive job-board applying with active personal branding — limited spots, real visibility, direct discovery.
+MarketMySelf is a talent billboard platform where professionals own a pixel section to market themselves to recruiters and companies. It replaces passive job-board applying with active personal branding — limited spots, real visibility, direct discovery.
 
 ## Users
 **Job seekers**: Professionals tired of ignored applications who want to be discovered rather than just apply. Technical, Marketing, and Finance roles. Ambitious, frustrated with the status quo, willing to invest effort in standing out.

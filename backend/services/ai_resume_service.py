@@ -97,8 +97,8 @@ async def call_openrouter(
     start = time.monotonic()
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "pixelhire.com",
-        "X-Title": "PixelHire",
+        "HTTP-Referer": "marketmyself.com",
+        "X-Title": "MarketMySelf",
         "Content-Type": "application/json",
     }
     payload = {

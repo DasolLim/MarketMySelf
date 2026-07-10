@@ -37,7 +37,7 @@ export default function HireCategoryPage({ params }: { params: { category: strin
 
   async function handleNotify(ownerId: string) {
     if (!accessToken) return;
-    await notifySeeker(ownerId, "A recruiter is interested in your profile on PixelHire.", accessToken);
+    await notifySeeker(ownerId, "A recruiter is interested in your profile on MarketMySelf.", accessToken);
   }
 
   if (isLoading || !cat) {

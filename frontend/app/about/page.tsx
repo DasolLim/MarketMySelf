@@ -101,7 +101,7 @@ export default function AboutPage() {
 
         <div style={{ position: "relative", maxWidth: 760, animation: "fadeInUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s both" }}>
           <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#B45309", fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 28 }}>
-            The story behind PixelHire
+            The story behind MarketMySelf
           </div>
           <h1
             style={{
@@ -199,7 +199,7 @@ export default function AboutPage() {
                 &ldquo;I&apos;ve been there. Endless rejections. No replies. Confidence dropping every day. Feeling invisible in a saturated job market.&rdquo;
               </p>
               <cite style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9CA3AF", fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", fontStyle: "normal" }}>
-                — The founder of PixelHire
+                — The founder of MarketMySelf
               </cite>
             </blockquote>
           </div>

@@ -162,7 +162,7 @@ export default function HomePage() {
                 animation: "fadeInUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s both",
               }}
             >
-              PixelHire is a talent billboard where professionals own premium profile sections and get discovered directly by hiring companies — resulting in higher interview rates and faster job placement.
+              MarketMySelf is a talent billboard where professionals own premium profile sections and get discovered directly by hiring companies — resulting in higher interview rates and faster job placement.
             </p>
 
             <div
@@ -281,13 +281,13 @@ export default function HomePage() {
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 14 }}>
-              Why PixelHire works
+              Why MarketMySelf works
             </div>
             <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: "clamp(26px, 4vw, 42px)", color: "#FFFFFF", lineHeight: 1.1, letterSpacing: "-0.025em", marginBottom: 14 }}>
               The interview advantage
             </h2>
             <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, color: "rgba(255,255,255,0.75)", maxWidth: "52ch", margin: "0 auto", lineHeight: 1.75 }}>
-              Traditional job boards bury you in thousands of applications. PixelHire puts you in front of companies who are actively browsing — no more getting lost in the stack.
+              Traditional job boards bury you in thousands of applications. MarketMySelf puts you in front of companies who are actively browsing — no more getting lost in the stack.
             </p>
           </div>
 
@@ -296,19 +296,19 @@ export default function HomePage() {
               {
                 stat: "3×",
                 title: "More interview callbacks",
-                body: "Members who own a PixelHire section receive 3× more direct interview invitations compared to traditional job board applicants.",
+                body: "Members who own a MarketMySelf section receive 3× more direct interview invitations compared to traditional job board applicants.",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.41 7.87a16 16 0 006.72 6.72l1.23-.82a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>,
               },
               {
                 stat: "87%",
                 title: "Interview callback rate",
-                body: "87% of PixelHire profile owners receive at least one company-initiated interview request. Your profile works for you around the clock.",
+                body: "87% of MarketMySelf profile owners receive at least one company-initiated interview request. Your profile works for you around the clock.",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
               },
               {
                 stat: "340+",
                 title: "Companies actively browsing",
-                body: "Over 340 companies spanning tech startups to enterprise firms browse PixelHire for Technical, Marketing, and Finance talent every month.",
+                body: "Over 340 companies spanning tech startups to enterprise firms browse MarketMySelf for Technical, Marketing, and Finance talent every month.",
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>,
               },
               {
@@ -506,7 +506,7 @@ export default function HomePage() {
                 <rect x="8" y="8" width="5" height="5" rx="1.5" fill="white" opacity="0.35" />
               </svg>
             </div>
-            <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 13, color: "#191919", letterSpacing: "0.04em" }}>PixelHire</span>
+            <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 13, color: "#191919", letterSpacing: "0.04em" }}>MarketMySelf</span>
           </div>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
             {[
@@ -523,7 +523,7 @@ export default function HomePage() {
             ))}
           </div>
           <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#D1D5DB", fontWeight: 500 }}>
-            © 2026 PixelHire
+            © 2026 MarketMySelf
           </div>
         </div>
       </footer>

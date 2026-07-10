@@ -186,7 +186,7 @@ export default function RegisterPage() {
                 <rect x="8" y="8" width="5" height="5" rx="1.5" fill="white" opacity="0.35" />
               </svg>
             </div>
-            <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: "#191919", letterSpacing: "0.04em" }}>PixelHire</span>
+            <span style={{ fontFamily: "'Chakra Petch', sans-serif", fontWeight: 700, fontSize: 18, color: "#191919", letterSpacing: "0.04em" }}>MarketMySelf</span>
           </Link>
           <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: 26, color: "#191919", letterSpacing: "-0.025em", marginBottom: 6 }}>
             Create your account

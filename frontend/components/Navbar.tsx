@@ -196,7 +196,7 @@ export function Navbar() {
             letterSpacing: "0.02em",
           }}
         >
-          PixelHire
+          MarketMySelf
         </span>
       </Link>
 

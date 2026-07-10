@@ -80,7 +80,7 @@ export default function RecruiterPage() {
             </div>
             <div>
               <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#191919", marginBottom: 3 }}>Recruiter Account</div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF" }}>Search, connect with, and hire from the PixelHire talent pool.</div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF" }}>Search, connect with, and hire from the MarketMySelf talent pool.</div>
             </div>
             <div style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "rgba(5,118,66,0.08)", border: "1px solid rgba(5,118,66,0.22)", borderRadius: 100, fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#057642", fontWeight: 600 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#057642", animation: "glow-pulse 2s ease infinite" }} />

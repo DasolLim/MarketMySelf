@@ -1,8 +1,8 @@
-# PixelHire
+# MarketMySelf
 
 > **Stop Applying. Start Being Found.** — A talent-billboard platform where professionals buy a pixel section to market themselves, and companies discover candidates directly instead of sifting through résumés.
 
-PixelHire flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job-search** experience.
+MarketMySelf flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job-search** experience.
 
 <p align="left">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white">

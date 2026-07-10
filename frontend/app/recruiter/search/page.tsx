@@ -88,7 +88,7 @@ export default function RecruiterSearchPage() {
                     section={section}
                     onNotify={section.owner_id ? async (ownerId) => {
                       if (!accessToken) return;
-                      await notifySeeker(ownerId, "A recruiter is interested in your profile. Visit PixelHire to learn more.", accessToken);
+                      await notifySeeker(ownerId, "A recruiter is interested in your profile. Visit MarketMySelf to learn more.", accessToken);
                     } : undefined}
                   />
                 ))}

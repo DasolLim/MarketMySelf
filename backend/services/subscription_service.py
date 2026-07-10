@@ -78,7 +78,7 @@ def create_checkout_session(user_id: str, tier: str, return_url: str) -> str:
                 "currency": "usd",
                 "unit_amount": TIER_PRICES[tier],
                 "recurring": {"interval": "month"},
-                "product_data": {"name": f"PixelHire {tier.title()}"},
+                "product_data": {"name": f"MarketMySelf {tier.title()}"},
             },
             "quantity": 1,
         }

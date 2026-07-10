@@ -216,7 +216,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 16, color: "#191919", marginBottom: 3 }}>
-                Your PixelHire Account
+                Your MarketMySelf Account
               </div>
               <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9CA3AF" }}>
                 ID: <span style={{ color: "#555555", fontWeight: 500 }}>{shortId}</span>

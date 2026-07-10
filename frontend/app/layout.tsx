@@ -4,10 +4,10 @@ import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "PixelHire — The Talent Billboard",
+  title: "MarketMySelf — The Talent Billboard",
   description: "Own a section. Show the world who you are. 500 talent sections across 5 pages.",
   openGraph: {
-    title: "PixelHire",
+    title: "MarketMySelf",
     description: "The talent billboard. Own your pixel.",
     type: "website",
   },
