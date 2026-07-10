@@ -2,7 +2,7 @@
 
 > **Stop Applying. Start Being Found.** — A talent-billboard platform where professionals buy a pixel section to market themselves, and companies discover candidates directly instead of sifting through résumés.
 
-PixelHire flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** and a **distributed job-ingestion pipeline** that aggregates and searches listings from 18 sources.
+PixelHire flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job-search** experience.
 
 <p align="left">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white">
@@ -10,7 +10,6 @@ PixelHire flips the job-board model: instead of applying into the void, users ow
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-14.2-000000?logo=nextdotjs&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.4-3178C6?logo=typescript&logoColor=white">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql&logoColor=white">
-  <img alt="Elasticsearch" src="https://img.shields.io/badge/Elasticsearch-8.x-005571?logo=elasticsearch&logoColor=white">
   <img alt="Stripe" src="https://img.shields.io/badge/Stripe-Payments-635BFF?logo=stripe&logoColor=white">
   <img alt="Claude" src="https://img.shields.io/badge/Anthropic-Claude-D97757?logo=anthropic&logoColor=white">
 </p>
@@ -19,12 +18,12 @@ PixelHire flips the job-board model: instead of applying into the void, users ow
 
 ## Highlights
 
-- **Full-stack, service-oriented monorepo** — a FastAPI backend, a Next.js 14 (App Router) frontend, and a standalone async job-scraping microservice, each independently deployable.
-- **Custom JWT auth with role-based access control** — the backend issues and verifies its own HS256 tokens layered over Supabase Auth, gating routes by role (talent / recruiter) via dependency-injected guards.
-- **AI career-coaching suite** — résumé analysis, cover-letter generation, and interview-prep question generation backed by **Anthropic Claude**, with **OpenRouter multi-model routing** (frontier vs. cost-optimized models) and PDF/DOCX text extraction + PDF export.
-- **Distributed job-ingestion pipeline** — async scrapers across **18 sources** feed a normalize → deduplicate → index flow into **Elasticsearch**, with Playwright-based anti-detection and a scheduler.
+- **Full-stack monorepo** — a FastAPI (Python) backend and a Next.js 14 (TypeScript) frontend, cleanly separated and independently runnable.
+- **Custom JWT auth with role-based access control** — the backend issues and verifies its own HS256 tokens layered over Supabase Auth, with access/refresh rotation and dependency-injected role guards (`seeker` / `recruiter`).
+- **AI career-coaching suite** — résumé analysis, cover-letter generation, and interview-prep questions/answers backed by **Anthropic Claude**, with **multi-model routing** (frontier vs. cost-optimized) and PDF/DOCX extraction + PDF export.
+- **Full-text job search** — **PostgreSQL `tsvector`/`ts_rank`** relevance ranking with dynamically aggregated facets and pagination — no external search engine required.
 - **Stripe integration** — one-time section purchases and recurring subscriptions with webhook handling.
-- **Production concerns baked in** — rate limiting, CORS allow-listing, input sanitization (`bleach`), CSP headers, and Alembic-managed migrations.
+- **Production concerns baked in** — per-endpoint rate limiting, CORS allow-listing, input sanitization (`bleach`), CSP headers, and Alembic-managed migrations.
 
 ---
 
@@ -32,39 +31,29 @@ PixelHire flips the job-board model: instead of applying into the void, users ow
 
 ```
 MarketMySelf/
-├── pixelhire/
-│   ├── backend/        FastAPI · SQLAlchemy 2.0 · Supabase (PostgreSQL) · Stripe · Claude
-│   │   ├── routers/    auth · sections · payments · subscriptions · jobs · applications
-│   │   │               search · profile · ai_coaching · scraped_jobs · images
-│   │   ├── models/     SQLAlchemy ORM models (users, sections, payments, coaching, …)
-│   │   ├── schemas/    Pydantic v2 request/response validation
-│   │   ├── services/   Business logic (AI coaching, resume, cover letter, interview,
-│   │   │               Stripe, search, storage, image processing)
-│   │   ├── middleware/ Rate limiting (slowapi) · role-based auth guard (JWT)
-│   │   └── migrations/ Alembic
-│   │
-│   └── frontend/       Next.js 14.2 · TypeScript · React 18
-│       ├── app/        Talent billboard, dashboard, recruiter portal, coaching, pricing
-│       ├── components/ Grid, résumé upload, job cards, search filters, notifications
-│       └── lib/        API client, auth context, Supabase & Stripe clients
+├── backend/          FastAPI · SQLAlchemy 2.0 · Supabase (PostgreSQL) · Stripe · Claude
+│   ├── routers/      auth · sections · payments · subscriptions · jobs · applications
+│   │                 search · profile · ai_coaching · scraped_jobs · images
+│   ├── models/       SQLAlchemy ORM models (users, sections, payments, coaching, …)
+│   ├── schemas/      Pydantic v2 request/response validation
+│   ├── services/     Business logic (AI coaching, resume, cover letter, interview,
+│   │                 Stripe, job search, image processing)
+│   ├── middleware/   Rate limiting (slowapi) · role-based auth guard (JWT)
+│   └── migrations/   Alembic
 │
-└── job_scraper/        Standalone async Python microservice
-    ├── scraper/
-    │   ├── adapters/       18 source adapters (Indeed, LinkedIn, Glassdoor, Dice,
-    │   │                   ZipRecruiter, Wellfound, Google Jobs + raw API feeds)
-    │   ├── anti_detect/    Proxy pool · request throttling · browser profiles
-    │   ├── normalizer.py   Per-source → canonical schema
-    │   ├── deduplicator.py Content-hash + fuzzy matching (rapidfuzz)
-    │   ├── es_*.py         Elasticsearch client, indexing & search
-    │   └── scheduler.py    Recurring ingestion
-    └── tests/              pytest + pytest-asyncio suite
+├── frontend/         Next.js 14.2 · TypeScript · React 18
+│   ├── app/          Talent billboard, dashboard, recruiter portal, coaching, pricing
+│   ├── components/   Grid, résumé upload, job cards, search filters, notifications
+│   └── lib/          Typed API client, auth context, Supabase & Stripe clients
+│
+└── claude/           Architecture & design documentation
 ```
 
 ---
 
 ## Tech Stack
 
-### Backend — `pixelhire/backend`
+### Backend — `backend/`
 | Concern | Technology |
 |---|---|
 | API framework | **FastAPI** (async), Uvicorn |
@@ -75,9 +64,10 @@ MarketMySelf/
 | Payments | **Stripe** (payment intents, subscriptions, webhooks) |
 | AI / LLM | **Anthropic Claude**, **OpenRouter** (multi-model routing) |
 | Document processing | `pdfplumber`, `python-docx`, `reportlab` (PDF gen), Pillow |
+| Search | **PostgreSQL full-text search** (`tsvector` / `ts_rank`) |
 | Hardening | `slowapi` rate limiting, `bleach` sanitization, CORS allow-list |
 
-### Frontend — `pixelhire/frontend`
+### Frontend — `frontend/`
 | Concern | Technology |
 |---|---|
 | Framework | **Next.js 14.2** (App Router), **React 18** |
@@ -87,16 +77,6 @@ MarketMySelf/
 | Media | `react-dropzone`, `react-image-crop` |
 | Styling | Design-token system (inline styles), custom CSS animations |
 
-### Job Scraper — `job_scraper`
-| Concern | Technology |
-|---|---|
-| Runtime | **async Python** (`httpx`, `asyncpg`) |
-| Scraping | **Playwright** + `playwright-stealth`, BeautifulSoup / lxml |
-| Search & storage | **Elasticsearch 8.x**, PostgreSQL |
-| Dedup / cleaning | `rapidfuzz`, `ftfy` |
-| Config | `pydantic-settings` |
-| Testing | `pytest`, `pytest-asyncio`, `respx` |
-
 ---
 
 ## Backend — Deep Dive
@@ -104,10 +84,10 @@ MarketMySelf/
 Python 3.14 · FastAPI · SQLAlchemy 2.0 · PostgreSQL · demonstrating API design, relational modeling, auth, and production hardening.
 
 ### Routing & API design
-- **Modular router architecture** — 11 versioned `APIRouter` modules (`auth`, `sections`, `payments`, `subscriptions`, `jobs`, `scraped_jobs`, `applications`, `search`, `profile`, `ai_coaching`, `images`), each mounted with its own prefix and OpenAPI tag and composed in `main.py`.
+- **Modular router architecture** — 11 `APIRouter` modules (`auth`, `sections`, `payments`, `subscriptions`, `jobs`, `scraped_jobs`, `applications`, `search`, `profile`, `ai_coaching`, `images`), each mounted with its own prefix and OpenAPI tag and composed in `main.py`.
 - **RESTful semantics** — correct verbs (`GET`/`POST`/`PATCH`/`DELETE`), explicit status codes (`201 Created`, `429`, `403`), and resource-oriented paths with typed path/query parameters (e.g. `PATCH /coaching/interview-prep/sessions/{session_id}`).
 - **Layered separation of concerns** — thin routers delegate to a `services/` layer for business logic, validate through **Pydantic v2** `schemas/`, and persist via SQLAlchemy `models/`. Auto-generated, environment-gated **Swagger/OpenAPI** docs (disabled in production).
-- **Async-first** — endpoints and the job pipeline are `async`, backed by connection pooling for concurrent throughput.
+- **Async endpoints** — FastAPI `async` handlers over a pooled SQLAlchemy session layer.
 
 ### Authentication & authorization
 - **Layered identity** — credentials are verified against **Supabase Auth**, but the backend mints and validates its **own HS256 JWTs**, decoupling the API's session model from the provider.
@@ -116,7 +96,7 @@ Python 3.14 · FastAPI · SQLAlchemy 2.0 · PostgreSQL · demonstrating API desi
 - **Secure credential handling** — bcrypt via `passlib`; registration uses the anon key to preserve the email-verification flow (a deliberate choice — the service key would auto-confirm and skip verification); password changes re-authenticate the current password before applying via the admin API.
 
 ### Middleware & hardening
-- **Per-endpoint rate limiting** — `slowapi` with granular limits (`5/min` on register/change-password, `10/min` on login) and a custom `429` JSON handler.
+- **Per-endpoint rate limiting** — `slowapi` with granular limits (`5/min` on register/change-password, `10/min` on login, `120/min` on search) and a custom `429` JSON handler.
 - **Strict CORS** — explicit origin allow-list, method whitelist, and a curated header set (including `stripe-signature` for webhook verification).
 - **Input sanitization** — user-supplied HTML scrubbed with `bleach`; CSP headers enforced at the edge.
 - **Secrets discipline** — all keys via environment; access tokens never persisted server-side.
@@ -125,6 +105,7 @@ Python 3.14 · FastAPI · SQLAlchemy 2.0 · PostgreSQL · demonstrating API desi
 - **SQLAlchemy 2.0** modern `DeclarativeBase` ORM over Supabase-managed **PostgreSQL**.
 - **Tuned connection pool** — `pool_pre_ping`, `pool_size=10`, `max_overflow=20`, with a request-scoped `get_db` session dependency ensuring deterministic cleanup.
 - **Relational schema** — 14 models (`User`, `PixelSection`, `Payment`, `Subscription`, `JobPost`, `Application`, `ScrapedJob`, `CoachingSession`, `ResumeAnalysis`, `CoverLetter`, `InterviewPrep`, `Notification`, `PromptTemplate`) using **UUID primary keys**, schema-qualified tables, timezone-aware timestamps, and DB-side `server_default` values.
+- **Native full-text search** — job search is built directly on **PostgreSQL FTS**: `to_tsvector('english', …)` over title + description with `ts_rank` relevance ordering, hand-written parameterized SQL, faceted counts via `GROUP BY`, and pagination.
 - **Versioned migrations** — schema managed with **Alembic**.
 
 ### AI integration
@@ -142,9 +123,8 @@ Next.js 14 (App Router) · TypeScript · React 18 · demonstrating typed data ac
 - A **650-line strongly-typed API client** (`lib/api.ts`) is the single boundary to the backend: a generic `request<T>()` wrapper centralizes base URL, JSON handling, and error propagation; helpers compose `authHeaders(token)` and `buildQuery()` for type-safe query strings; `FormData` used for multipart image/résumé uploads.
 - **Auth context** (`useAuth`) keeps the access token in memory only, persists the refresh token, and auto-restores the session on mount — mirroring the backend's rotation model on the client.
 
-### Real-time job discovery
-- **Continuously ingested listings** — job postings are sourced by the standalone async scraper (18 providers), normalized, deduplicated, and indexed into **Elasticsearch**, then served to the UI through `GET /scraped-jobs/search`.
-- **Faceted search UX** — `JobSearchFilters` drives multi-dimensional queries (query text, work type, experience level, employment type, skills, salary range, location) that map directly onto Elasticsearch facets for fast, relevance-ranked results.
+### Job discovery
+- **Faceted full-text search** — `JobSearchFilters` drives multi-dimensional queries (query text, work type, experience level, employment type, skills, salary range, location, company) against `GET /scraped-jobs/search`, which resolves them through PostgreSQL full-text search with relevance ranking and live facet counts.
 - **First-party postings too** — recruiters create/update/delete their own listings (`/jobs`), rendered alongside aggregated jobs via reusable `JobListingCard` / `ScrapedJobCard` components.
 
 ### AI-powered user dashboard
@@ -166,7 +146,7 @@ The authenticated dashboard (`/dashboard`) surfaces the AI coaching suite end-to
 
 ### Backend
 ```bash
-cd pixelhire/backend
+cd backend
 python3 -m venv venv && source venv/bin/activate
 pip3 install -r requirements.txt
 alembic -c migrations/alembic.ini upgrade head
@@ -175,18 +155,9 @@ uvicorn main:app --reload --port 8000        # docs at http://localhost:8000/doc
 
 ### Frontend
 ```bash
-cd pixelhire/frontend
+cd frontend
 npm install
 npm run dev                                   # http://localhost:3000
-```
-
-### Job Scraper
-```bash
-cd job_scraper
-python3 -m venv .venv && source .venv/bin/activate
-pip3 install -r requirements.txt
-playwright install
-python3 cli.py --help
 ```
 
 Each service reads configuration from its own `.env` (database URL, Supabase keys, Stripe keys, JWT secret, and LLM API keys).
@@ -195,10 +166,10 @@ Each service reads configuration from its own `.env` (database URL, Supabase key
 
 ## Engineering Notes
 
-- **Separation of concerns** — routers stay thin; business logic lives in `services/`, validation in `schemas/`, persistence in `models/`. The scraper is fully decoupled from the web app and communicates through the shared datastore.
-- **Resilient ingestion** — Elasticsearch failures never block the scrape pipeline; indexing is best-effort while PostgreSQL remains the source of truth.
+- **Separation of concerns** — routers stay thin; business logic lives in `services/`, validation in `schemas/`, persistence in `models/`.
+- **Search without extra infrastructure** — job search runs on native PostgreSQL full-text search (`tsvector`/`ts_rank`) with SQL-aggregated facets, avoiding an external search dependency while keeping results relevance-ranked.
 - **Security-first defaults** — role-scoped JWT guards, per-route rate limits, HTML sanitization on user input, strict CORS/CSP, and access tokens kept out of persistent storage.
 
 ---
 
-<sub>Built as a full-stack portfolio project demonstrating end-to-end product engineering — API design, relational data modeling, third-party integrations (Stripe, Supabase, LLM providers), async data pipelines, and modern React.</sub>
+<sub>Built as a full-stack portfolio project demonstrating end-to-end product engineering — API design, relational data modeling, full-text search, third-party integrations (Stripe, Supabase, LLM providers), and modern React.</sub>
