@@ -12,6 +12,7 @@ MarketMySelf flips the job-board model: instead of applying into the void, users
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql&logoColor=white">
   <img alt="Stripe" src="https://img.shields.io/badge/Stripe-Payments-635BFF?logo=stripe&logoColor=white">
   <img alt="Claude" src="https://img.shields.io/badge/Anthropic-Claude-D97757?logo=anthropic&logoColor=white">
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg">
 </p>
 
 **Live demo → [marketmyself-frontend.vercel.app](https://marketmyself-frontend.vercel.app)**
@@ -204,6 +205,12 @@ Each service reads configuration from its own `.env` (database URL, Supabase key
 - **Separation of concerns** — routers stay thin; business logic lives in `services/`, validation in `schemas/`, persistence in `models/`.
 - **Search without extra infrastructure** — job search runs on native PostgreSQL full-text search (`tsvector`/`ts_rank`) with SQL-aggregated facets, avoiding an external search dependency while keeping results relevance-ranked.
 - **Security-first defaults** — role-scoped JWT guards, per-route rate limits, HTML sanitization on user input, strict CORS/CSP, and access tokens kept out of persistent storage.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
 
 ---
 
