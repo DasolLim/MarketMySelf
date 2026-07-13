@@ -1,6 +1,13 @@
 .claude
-job_scraper
+# job_scraper
 .vercel
 .env
 *.env.local
 # docs
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/

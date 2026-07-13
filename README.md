@@ -2,7 +2,7 @@
 
 > **Stop Applying. Start Getting Found.** — A talent-billboard platform where professionals buy a pixel section to market themselves, and companies discover candidates directly instead of sifting through résumés.
 
-MarketMySelf flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job-search** experience.
+MarketMySelf flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job search** fed by a standalone **async ingestion pipeline** that aggregates listings from 17 job boards.
 
 <p align="left">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white">
@@ -54,10 +54,11 @@ One dashboard, three tabs. Every run is persisted and retrievable from history.
 
 ## Highlights
 
-- **Full-stack monorepo** — a FastAPI (Python) backend and a Next.js 14 (TypeScript) frontend, cleanly separated and independently runnable.
+- **Three-service monorepo** — a FastAPI (Python) backend, a Next.js 14 (TypeScript) frontend, and a standalone async job-ingestion pipeline, each independently runnable.
 - **Custom JWT auth with role-based access control** — the backend issues and verifies its own HS256 tokens layered over Supabase Auth, with access/refresh rotation and dependency-injected role guards (`seeker` / `recruiter`).
 - **AI career-coaching suite** — résumé analysis, cover-letter generation, and interview-prep questions/answers backed by **Anthropic Claude**, with **multi-model routing** (frontier vs. cost-optimized) and PDF/DOCX extraction + PDF export.
 - **Full-text job search** — **PostgreSQL `tsvector`/`ts_rank`** relevance ranking with dynamically aggregated facets and pagination — no external search engine required.
+- **Async job-ingestion pipeline** — 17 source adapters (9 API/feed + 8 Playwright browser-based) feed a two-stage *fetch → normalise → deduplicate → upsert* flow, with content-hash + fuzzy dedup, anti-detection (proxy pool, throttling, browser profiles), and a pytest suite.
 - **Stripe integration** — one-time section purchases and recurring subscriptions with webhook handling.
 - **Production concerns baked in** — per-endpoint rate limiting, CORS allow-listing, input sanitization (`bleach`), CSP headers, and Alembic-managed migrations.
 
@@ -82,7 +83,33 @@ MarketMySelf/
 │   ├── components/   Grid, résumé upload, job cards, search filters, notifications
 │   └── lib/          Typed API client, auth context, Supabase & Stripe clients
 │
+├── job_scraper/      Standalone async ingestion service (Python)
+│   ├── cli.py        fetch-raw · normalize · es  commands
+│   ├── scraper/
+│   │   ├── adapters/     17 sources — 9 API/feed (RemoteOK, Remotive, Adzuna,
+│   │   │                 Jobicy, Himalayas, HN Hiring, JSearch, SerpAPI, Dice)
+│   │   │                 + 8 Playwright (LinkedIn, Indeed, Glassdoor, Wellfound,
+│   │   │                 ZipRecruiter, CareerBuilder, Google Jobs, Dice)
+│   │   ├── anti_detect/  Proxy pool · request throttling · browser profiles
+│   │   ├── normalizer.py Per-source payload → canonical schema
+│   │   ├── deduplicator.py  Content-hash + fuzzy matching (rapidfuzz)
+│   │   ├── es_*.py       Optional Elasticsearch indexing & search
+│   │   └── scheduler.py  Recurring ingestion runs
+│   └── tests/        pytest + pytest-asyncio
+│
 └── claude/           Architecture & design documentation
+```
+
+The three services are decoupled: the scraper never calls the API. It writes into
+Postgres, and the backend reads from it — the database is the only handoff point.
+
+```
+job_scraper ──fetch──▶ raw_jobs ──normalize/dedupe──▶ scraped_jobs
+                                                           │
+                                    backend  GET /scraped-jobs/search
+                                    (PostgreSQL full-text search)
+                                                           │
+                                            frontend  "Find Work" page
 ```
 
 ---
@@ -112,6 +139,16 @@ MarketMySelf/
 | Payments | `@stripe/stripe-js` |
 | Media | `react-dropzone`, `react-image-crop` |
 | Styling | Design-token system (inline styles), custom CSS animations |
+
+### Job Scraper — `job_scraper/`
+| Concern | Technology |
+|---|---|
+| Runtime | **async Python** (`asyncio`, `httpx`, `asyncpg`) |
+| Browser automation | **Playwright** + `playwright-stealth`, BeautifulSoup / lxml |
+| Dedup & cleaning | `rapidfuzz` (fuzzy matching), `ftfy` (text repair) |
+| Optional search index | **Elasticsearch 8.x** |
+| Config | `pydantic-settings` |
+| Testing | `pytest`, `pytest-asyncio`, `respx` (HTTP mocking) |
 
 ---
 
@@ -178,6 +215,32 @@ The authenticated dashboard (`/dashboard/coaching`) surfaces the AI coaching sui
 
 ---
 
+## Job Ingestion Pipeline — Deep Dive
+
+`job_scraper/` is a standalone async service — no FastAPI, no HTTP surface. It exists to turn messy third-party job listings into clean, deduplicated rows the app can search.
+
+### Two-stage design
+Fetching and parsing are **deliberately separated** so a parser bug never costs a re-fetch:
+
+1. **`fetch-raw`** — hits every selected source concurrently and stores the untouched payload in `raw_jobs`. Raw responses are preserved verbatim.
+2. **`normalize`** — reads unprocessed `raw_jobs`, runs each row through its per-source adapter into a canonical schema, deduplicates, and upserts into `scraped_jobs`. Rows are marked processed, so runs are idempotent; `--reprocess` re-runs adapters over stored payloads without re-hitting the network.
+
+### Source adapters
+17 sources behind one interface, split by acquisition strategy:
+- **API/feed adapters** (9) — RemoteOK, Remotive, Adzuna, Jobicy, Himalayas, HN Hiring, JSearch, SerpAPI, Dice. Fast, key-free where possible.
+- **Browser adapters** (8) — LinkedIn, Indeed, Glassdoor, Wellfound, ZipRecruiter, CareerBuilder, Google Jobs, Dice — driven by **Playwright** with stealth patches for boards that block plain HTTP clients.
+
+### Data quality
+- **Deduplication** — content-hash for exact matches plus `rapidfuzz` fuzzy matching to collapse the same role cross-posted to several boards under different titles.
+- **Normalisation** — salary parsing (ranges, currencies, periods), experience-level and work-type inference, `ftfy` mojibake repair, and HTML stripping into the plain text the backend's `tsvector` indexes.
+
+### Operational concerns
+- **Anti-detection** — rotating proxy pool, per-host request throttling, and randomised browser profiles.
+- **Resilience** — Elasticsearch indexing is best-effort and never blocks the pipeline; **PostgreSQL remains the source of truth**, which is why the app's search runs on Postgres FTS and needs no external search cluster.
+- **Tested** — `pytest`/`pytest-asyncio` cover the normalizer, deduplicator, and ES layers, with `respx` mocking HTTP so tests never touch live boards.
+
+---
+
 ## Getting Started
 
 ### Backend
@@ -196,14 +259,31 @@ npm install
 npm run dev                                   # http://localhost:3000
 ```
 
-Each service reads configuration from its own `.env` (database URL, Supabase keys, Stripe keys, JWT secret, and LLM API keys).
+### Job Scraper
+```bash
+cd job_scraper
+python3 -m venv .venv && source .venv/bin/activate
+pip3 install -r requirements.txt
+playwright install                            # only needed for the browser adapters
+
+# 1. fetch listings into raw_jobs (these four sources need no API keys)
+python3 cli.py fetch-raw --query "software engineer" \
+  --sources remoteok remotive himalayas jobicy --output /tmp/raw.json
+
+# 2. normalise + deduplicate into scraped_jobs (what the app searches)
+python3 cli.py normalize --limit 500 --output /tmp/norm.json
+```
+Pass `--output` — omitted, the command pretty-prints every listing to stdout. Run `python3 cli.py --help` for all commands (`fetch-raw`, `normalize`, `es`).
+
+Each service reads configuration from its own `.env` (database URL, Supabase keys, Stripe keys, JWT secret, LLM and job-board API keys). The scraper only needs `DATABASE_URL` — it writes to the same Postgres the backend reads.
 
 ---
 
 ## Engineering Notes
 
-- **Separation of concerns** — routers stay thin; business logic lives in `services/`, validation in `schemas/`, persistence in `models/`.
+- **Separation of concerns** — routers stay thin; business logic lives in `services/`, validation in `schemas/`, persistence in `models/`. The scraper is fully decoupled from the web app and communicates only through the shared database.
 - **Search without extra infrastructure** — job search runs on native PostgreSQL full-text search (`tsvector`/`ts_rank`) with SQL-aggregated facets, avoiding an external search dependency while keeping results relevance-ranked.
+- **Idempotent ingestion** — raw payloads are stored before parsing, so adapters can be fixed and re-run over historical data without re-scraping; dedup keys make repeated runs safe.
 - **Security-first defaults** — role-scoped JWT guards, per-route rate limits, HTML sanitization on user input, strict CORS/CSP, and access tokens kept out of persistent storage.
 
 ---
