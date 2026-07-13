@@ -4,7 +4,6 @@ sqlalchemy>=2.0.36
 alembic>=1.14.0
 psycopg2-binary>=2.9.10
 pillow>=11.0.0
-python-magic>=0.4.27
 supabase>=2.10.0
 stripe>=11.0.0
 slowapi>=0.1.9

@@ -1,6 +1,6 @@
 # MarketMySelf
 
-> **Stop Applying. Start Being Found.** — A talent-billboard platform where professionals buy a pixel section to market themselves, and companies discover candidates directly instead of sifting through résumés.
+> **Stop Applying. Start Getting Found.** — A talent-billboard platform where professionals buy a pixel section to market themselves, and companies discover candidates directly instead of sifting through résumés.
 
 MarketMySelf flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job-search** experience.
 
@@ -13,6 +13,41 @@ MarketMySelf flips the job-board model: instead of applying into the void, users
   <img alt="Stripe" src="https://img.shields.io/badge/Stripe-Payments-635BFF?logo=stripe&logoColor=white">
   <img alt="Claude" src="https://img.shields.io/badge/Anthropic-Claude-D97757?logo=anthropic&logoColor=white">
 </p>
+
+**Live demo → [marketmyself-frontend.vercel.app](https://marketmyself-frontend.vercel.app)**
+Next.js frontend and the FastAPI backend (as Python serverless functions) both deployed on Vercel.
+
+---
+
+## Screenshots
+
+### Landing — the talent-billboard pitch
+
+Personal-branding-first positioning: candidates own a profile section instead of firing off applications.
+
+![Landing page](docs/screenshots/home.png)
+
+### Find Work — faceted full-text job search
+
+The filter rail (keywords, location, work type, experience, employment type, skills, salary range) maps directly onto the backend's PostgreSQL full-text search — `to_tsvector`/`ts_rank` for relevance ranking, with facet counts aggregated in SQL.
+
+![Job board](docs/screenshots/job-board.png)
+
+### AI Coaching — three Claude-powered tools
+
+One dashboard, three tabs. Every run is persisted and retrievable from history.
+
+**Résumé Analysis** — upload a PDF/DOCX plus the target job, then pick one of four analysis lenses: *Resume Diagnoser* (ATS audit), *Resume Recruiter* (keyword-gap analysis), *Resume Rewriter* (rewrites each bullet with the XYZ formula), and *Hiring Manager* (pre-interview assessment).
+
+![Résumé analysis](docs/screenshots/resume-analysis.png)
+
+**Cover Letter** — generates a tailored letter from the job description and your résumé, with a customisable writing-style prompt and a 500–3,000 character length control. Exportable to PDF.
+
+![Cover letter generator](docs/screenshots/cover-letter.png)
+
+**Interview Prep** — three modes (*Question Bank*, *Mock Interview*, *Questions to Ask*). Optionally attach a résumé for sharper targeting, set the interview stage, and generate 5–20 role-specific questions.
+
+![Interview prep](docs/screenshots/interview-prep.png)
 
 ---
 
@@ -128,10 +163,10 @@ Next.js 14 (App Router) · TypeScript · React 18 · demonstrating typed data ac
 - **First-party postings too** — recruiters create/update/delete their own listings (`/jobs`), rendered alongside aggregated jobs via reusable `JobListingCard` / `ScrapedJobCard` components.
 
 ### AI-powered user dashboard
-The authenticated dashboard (`/dashboard`) surfaces the AI coaching suite end-to-end:
-- **Résumé analysis** — drag-and-drop upload (`react-dropzone`) → backend extraction + LLM analysis → structured feedback with saved history.
-- **Cover-letter generator** — profile + job context → tailored letter with a configurable writing style, exportable to PDF.
-- **Interview prep** — generates targeted question sets, captures user answers, and produces AI model answers, all tracked across persisted sessions.
+The authenticated dashboard (`/dashboard/coaching`) surfaces the AI coaching suite end-to-end — see [Screenshots](#screenshots):
+- **Résumé analysis** — drag-and-drop PDF/DOCX upload (`react-dropzone`) → backend text extraction → LLM analysis, across four selectable lenses (ATS diagnoser, recruiter keyword-gap, XYZ-formula rewriter, hiring-manager assessment), with saved history.
+- **Cover-letter generator** — job description + résumé → tailored letter, with a user-editable writing-style prompt and a 500–3,000 character length control; exportable to PDF.
+- **Interview prep** — three modes (question bank, mock interview, questions to ask); takes an optional résumé and interview stage, generates 5–20 role-specific questions, captures user answers, and produces AI model answers across persisted sessions.
 - Each feature is a typed request/response round-trip through the API client, with loading, success, and error states styled from a shared design-token system.
 
 ### Role-aware, component-driven UI

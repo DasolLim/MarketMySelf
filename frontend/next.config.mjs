@@ -1,3 +1,5 @@
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -29,7 +31,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://*.supabase.co",
-              "connect-src 'self' https://*.supabase.co https://api.stripe.com http://localhost:8000",
+              `connect-src 'self' https://*.supabase.co https://api.stripe.com ${apiUrl}`,
               "media-src 'self' blob:",
               "frame-src https://js.stripe.com",
             ].join("; "),

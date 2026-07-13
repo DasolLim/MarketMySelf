@@ -1,2 +1,6 @@
 .claude
 job_scraper
+.vercel
+.env
+*.env.local
+docs

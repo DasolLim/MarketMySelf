@@ -1,12 +1,11 @@
 import io
 import uuid
-import magic
 from PIL import Image, UnidentifiedImageError
 from fastapi import UploadFile, HTTPException
 
 MAX_BYTES = 500_000
 MAX_DIM = 400
-ALLOWED_MIMES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 
 async def process_and_validate_image(file: UploadFile) -> tuple[bytes, str]:
@@ -15,15 +14,15 @@ async def process_and_validate_image(file: UploadFile) -> tuple[bytes, str]:
     if len(raw) > MAX_BYTES:
         raise HTTPException(status_code=422, detail="Image exceeds 500 KB limit")
 
-    mime = magic.from_buffer(raw, mime=True)
-    if mime not in ALLOWED_MIMES:
-        raise HTTPException(status_code=422, detail=f"Unsupported image type: {mime}")
-
     try:
-        img = Image.open(io.BytesIO(raw))
-        img.verify()
+        probe = Image.open(io.BytesIO(raw))
+        image_format = probe.format
+        probe.verify()
     except (UnidentifiedImageError, Exception):
         raise HTTPException(status_code=422, detail="Corrupt or invalid image file")
+
+    if image_format not in ALLOWED_FORMATS:
+        raise HTTPException(status_code=422, detail=f"Unsupported image type: {image_format}")
 
     img = Image.open(io.BytesIO(raw)).convert("RGBA")
     img.thumbnail((MAX_DIM, MAX_DIM), Image.LANCZOS)
