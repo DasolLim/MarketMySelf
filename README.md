@@ -1,6 +1,6 @@
 # MarketMySelf
 
-> **Stop Applying. Start Getting Found.**
+> **Stop Cold Applying. Start Getting Found.**
 
 On a job board, you're one résumé in a pile of hundreds. MarketMySelf turns that around. You claim a spot on a shared talent billboard and present yourself like a brand, and companies come to you.
 
