@@ -1,8 +1,16 @@
 # MarketMySelf
 
-> **Stop Applying. Start Getting Found.** — A talent-billboard platform where professionals buy a pixel section to market themselves, and companies discover candidates directly instead of sifting through résumés.
+> **Stop Applying. Start Getting Found.**
 
-MarketMySelf flips the job-board model: instead of applying into the void, users own a visual section on a 9,000-cell billboard and present themselves as a brand. On top of the marketplace sits an **AI career-coaching suite** (résumé analysis, cover-letter generation, interview prep) and a **full-text job search** fed by a standalone **async ingestion pipeline** that aggregates listings from 17 job boards.
+On a job board, you're one résumé in a pile of hundreds. MarketMySelf turns that around. You claim a spot on a shared talent billboard and present yourself like a brand, and companies come to you.
+
+**For job seekers**
+- **Own your section.** Claim one of 9,000 spots on the billboard (Technical, Marketing, or Finance) and build a profile with your photo, bio, skills, and portfolio.
+- **Get coached by AI.** Upload your résumé for an ATS and keyword review, generate a cover letter tailored to the job, and practice with role-specific interview questions. Every result is saved to your dashboard.
+- **Find work in one place.** Search listings collected from 17 job boards, with duplicates removed and results ranked by relevance.
+
+**For companies**
+- Browse talent by category, post jobs, and message candidates directly. No pile of résumés to sort through.
 
 <p align="left">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white">
